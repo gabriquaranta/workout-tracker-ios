@@ -1,5 +1,13 @@
 # SwiftUI Workout Tracker
-A simple snappy workout tracking app built entirely with SwiftUI. This app allows to create custom workout plans, track their progress in real-time, and view statistics and history to monitor their performance over time.
+A simple snappy workout tracking app built entirely with SwiftUI. This app allows to create custom workout plans, track their progress and view statistics and history to monitor performance over time.
+
+<p>
+  <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_3372.PNG" width="180" />
+  <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_3373.PNG" width="180" />
+  <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_3374.PNG" width="180" />
+  <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_3375.PNG" width="180" /> 
+  <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_3376.PNG" width="180" />
+</p>
 
 ## Features
 - **Workout Creation**: Create, edit, and delete custom workout plans.
@@ -23,7 +31,6 @@ A simple snappy workout tracking app built entirely with SwiftUI. This app allow
 - Charts: Apple's Charts Framework (iOS 16+)
 - Data Persistence: UserDefaults with Codable for simple and fast data storage.
 - Notifications: UserNotifications Framework for handling rest timer alerts.
-- 
 ## How to Run
 #### Prerequisites
 - macOS Ventura or later
