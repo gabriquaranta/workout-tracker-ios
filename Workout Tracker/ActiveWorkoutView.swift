@@ -1,27 +1,31 @@
 // ActiveWorkoutView.swift
 
 import SwiftUI
+import UserNotifications
 
 struct ActiveWorkoutView: View {
     @EnvironmentObject var store: WorkoutStore
     @Environment(\.dismiss) var dismiss
     
     let workout: Workout
-    @State private var completedSets: [UUID: CompletedSet] = [:] // [SetID: CompletedSet]
+    @State private var completedSets: [UUID: CompletedSet] = [:]
     @State private var workoutStartTime = Date()
     @State private var workoutTimer: Timer?
     @State private var totalElapsedTime: TimeInterval = 0
     
-    @State private var restTimer: Timer?
+    @State private var uiRestTimer: Timer? // Renamed to clarify its purpose
     @State private var restTimeRemaining: Int = 0
     @State private var isResting = false
     
     @State private var showCompletionAlert = false
     @State private var finalLog: WorkoutLog?
+    
+    // NEW: A unique identifier for our pending rest notification
+    private let restNotificationIdentifier = "workout_rest_notification"
 
     var body: some View {
         VStack {
-            // Top Timer Bar
+            // ... (The rest of the body view is unchanged)
             HStack {
                 Text("Total Time")
                 Spacer()
@@ -33,7 +37,6 @@ struct ActiveWorkoutView: View {
             .cornerRadius(10)
             .padding(.horizontal)
             
-            // Rest Timer Overlay
             if isResting {
                 HStack {
                     Text("REST")
@@ -51,7 +54,6 @@ struct ActiveWorkoutView: View {
                 .transition(.scale.combined(with: .opacity))
             }
 
-            // Exercises List
             List {
                 ForEach(workout.exercises) { exercise in
                     Section(header: Text(exercise.name).font(.title2)) {
@@ -83,11 +85,9 @@ struct ActiveWorkoutView: View {
         .navigationTitle(workout.name)
         .navigationBarBackButtonHidden(true)
         .onAppear(perform: startWorkoutTimer)
-        .onDisappear(perform: stopWorkoutTimer)
+        .onDisappear(perform: stopAllTimersAndNotifications) // UPDATED
         .alert("Workout Completed!", isPresented: $showCompletionAlert, presenting: finalLog) { log in
-            Button("OK") {
-                dismiss()
-            }
+            Button("OK") { dismiss() }
         } message: { log in
             VStack(alignment: .leading) {
                 Text("Total Time: \(log.formattedDuration)\n")
@@ -115,38 +115,62 @@ struct ActiveWorkoutView: View {
         }
     }
     
-    private func stopWorkoutTimer() {
+    // UPDATED: Renamed to be more descriptive
+    private func stopAllTimersAndNotifications() {
         workoutTimer?.invalidate()
+        uiRestTimer?.invalidate()
         workoutTimer = nil
-        restTimer?.invalidate()
-        restTimer = nil
+        uiRestTimer = nil
+        // NEW: Also cancel any pending rest notification if the view disappears
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [restNotificationIdentifier])
     }
     
     private func completeSet(set: WorkoutSet) {
         completedSets[set.id] = CompletedSet(reps: set.reps, weight: set.weight)
         
-        // Start rest timer
         restTimeRemaining = set.restTimeInSeconds
         if restTimeRemaining > 0 {
-            withAnimation {
-                isResting = true
-            }
-            restTimer?.invalidate()
-            restTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+            // UPDATED: Schedule the real notification first
+            scheduleRestNotification(in: TimeInterval(restTimeRemaining))
+            
+            withAnimation { isResting = true }
+            
+            // This timer is now ONLY for updating the UI
+            uiRestTimer?.invalidate()
+            uiRestTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
                 if restTimeRemaining > 0 {
                     restTimeRemaining -= 1
                 } else {
-                    restTimer?.invalidate()
-                    withAnimation {
-                        isResting = false
-                    }
+                    uiRestTimer?.invalidate()
+                    withAnimation { isResting = false }
+                    // We no longer send the notification from here.
                 }
             }
         }
     }
     
+    // UPDATED: The notification is now scheduled with a time-based trigger.
+    private func scheduleRestNotification(in seconds: TimeInterval) {
+        let content = UNMutableNotificationContent()
+        content.title = "Workout Tracker"
+        content.body = "Rest time Over!"
+        content.sound = .default
+
+        // The trigger is the key change: it tells the OS *when* to deliver.
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: seconds, repeats: false)
+        
+        // Use a specific identifier so we can cancel it if needed.
+        let request = UNNotificationRequest(identifier: restNotificationIdentifier, content: content, trigger: trigger)
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("Error scheduling notification: \(error)")
+            }
+        }
+    }
+    
     private func finishWorkout() {
-        stopWorkoutTimer()
+        stopAllTimersAndNotifications()
         
         var completedExercisesLog: [CompletedExercise] = []
         for exercise in workout.exercises {
@@ -158,12 +182,7 @@ struct ActiveWorkoutView: View {
             }
         }
         
-        let log = WorkoutLog(
-            date: Date(),
-            workoutName: workout.name,
-            duration: totalElapsedTime,
-            completedExercises: completedExercisesLog
-        )
+        let log = WorkoutLog(date: Date(), workoutName: workout.name, duration: totalElapsedTime, completedExercises: completedExercisesLog)
         
         self.finalLog = log
         store.addWorkoutLog(log)
@@ -171,6 +190,8 @@ struct ActiveWorkoutView: View {
     }
 }
 
+
+// Unchanged, required for compilation
 struct ActiveSetRow: View {
     let setNumber: Int
     let plannedSet: WorkoutSet
@@ -180,17 +201,13 @@ struct ActiveSetRow: View {
     
     var body: some View {
         HStack {
-            // Set Number Circle
             Text("\(setNumber)")
                 .font(.headline)
                 .frame(width: 30, height: 30)
                 .background(isCompleted ? Color.green : Color.gray.opacity(0.3))
                 .foregroundColor(isCompleted ? .white : .primary)
                 .clipShape(Circle())
-            
-            // Set Details
             VStack(alignment: .leading) {
-                // CORRECTED: Use String(format:) for weight display
                 Text("\(plannedSet.reps) reps at \(String(format: "%.1f", plannedSet.weight)) kg")
                     .font(.body)
                 if let last = lastPerformance {
@@ -199,16 +216,13 @@ struct ActiveSetRow: View {
                         .foregroundColor(.secondary)
                 }
             }
-            
             Spacer()
-            
-            // Completion Button
             Button(action: onComplete) {
                 Image(systemName: isCompleted ? "checkmark.circle.fill" : "circle")
                     .font(.title)
                     .foregroundColor(isCompleted ? .green : .accentColor)
             }
-            .buttonStyle(.plain) // Prevents the whole row from being a button
+            .buttonStyle(.plain)
             .disabled(isCompleted)
         }
         .padding(.vertical, 5)
