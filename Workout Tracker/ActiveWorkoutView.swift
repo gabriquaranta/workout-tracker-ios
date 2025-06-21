@@ -13,19 +13,17 @@ struct ActiveWorkoutView: View {
     @State private var workoutTimer: Timer?
     @State private var totalElapsedTime: TimeInterval = 0
     
-    @State private var uiRestTimer: Timer? // Renamed to clarify its purpose
+    @State private var uiRestTimer: Timer?
     @State private var restTimeRemaining: Int = 0
     @State private var isResting = false
     
     @State private var showCompletionAlert = false
     @State private var finalLog: WorkoutLog?
     
-    // NEW: A unique identifier for our pending rest notification
     private let restNotificationIdentifier = "workout_rest_notification"
 
     var body: some View {
         VStack {
-            // ... (The rest of the body view is unchanged)
             HStack {
                 Text("Total Time")
                 Spacer()
@@ -57,6 +55,17 @@ struct ActiveWorkoutView: View {
             List {
                 ForEach(workout.exercises) { exercise in
                     Section(header: Text(exercise.name).font(.title2)) {
+                        // Display header for the columns
+                        HStack {
+                            Spacer().frame(width: 40) // Spacer for the set number circle
+                            Text("Reps").frame(maxWidth: .infinity)
+                            Text("Weight").frame(maxWidth: .infinity)
+                            Text("Rest").frame(maxWidth: .infinity)
+                            Spacer().frame(width: 40) // Spacer for the checkmark
+                        }
+                        .font(.caption.bold())
+                        .foregroundColor(.secondary)
+                        
                         ForEach(Array(exercise.sets.enumerated()), id: \.element.id) { index, set in
                             ActiveSetRow(
                                 setNumber: index + 1,
@@ -85,7 +94,7 @@ struct ActiveWorkoutView: View {
         .navigationTitle(workout.name)
         .navigationBarBackButtonHidden(true)
         .onAppear(perform: startWorkoutTimer)
-        .onDisappear(perform: stopAllTimersAndNotifications) // UPDATED
+        .onDisappear(perform: stopAllTimersAndNotifications)
         .alert("Workout Completed!", isPresented: $showCompletionAlert, presenting: finalLog) { log in
             Button("OK") { dismiss() }
         } message: { log in
@@ -98,8 +107,6 @@ struct ActiveWorkoutView: View {
             }
         }
     }
-    
-    // MARK: - Timer and Logic
     
     private func formattedTime(_ interval: TimeInterval) -> String {
         let formatter = DateComponentsFormatter()
@@ -115,27 +122,20 @@ struct ActiveWorkoutView: View {
         }
     }
     
-    // UPDATED: Renamed to be more descriptive
     private func stopAllTimersAndNotifications() {
         workoutTimer?.invalidate()
         uiRestTimer?.invalidate()
         workoutTimer = nil
         uiRestTimer = nil
-        // NEW: Also cancel any pending rest notification if the view disappears
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [restNotificationIdentifier])
     }
     
     private func completeSet(set: WorkoutSet) {
         completedSets[set.id] = CompletedSet(reps: set.reps, weight: set.weight)
-        
         restTimeRemaining = set.restTimeInSeconds
         if restTimeRemaining > 0 {
-            // UPDATED: Schedule the real notification first
             scheduleRestNotification(in: TimeInterval(restTimeRemaining))
-            
             withAnimation { isResting = true }
-            
-            // This timer is now ONLY for updating the UI
             uiRestTimer?.invalidate()
             uiRestTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
                 if restTimeRemaining > 0 {
@@ -143,47 +143,33 @@ struct ActiveWorkoutView: View {
                 } else {
                     uiRestTimer?.invalidate()
                     withAnimation { isResting = false }
-                    // We no longer send the notification from here.
                 }
             }
         }
     }
     
-    // UPDATED: The notification is now scheduled with a time-based trigger.
     private func scheduleRestNotification(in seconds: TimeInterval) {
         let content = UNMutableNotificationContent()
         content.title = "Workout Tracker"
         content.body = "Rest time Over!"
         content.sound = .default
-
-        // The trigger is the key change: it tells the OS *when* to deliver.
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: seconds, repeats: false)
-        
-        // Use a specific identifier so we can cancel it if needed.
         let request = UNNotificationRequest(identifier: restNotificationIdentifier, content: content, trigger: trigger)
-
         UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("Error scheduling notification: \(error)")
-            }
+            if let error = error { print("Error scheduling notification: \(error)") }
         }
     }
     
     private func finishWorkout() {
         stopAllTimersAndNotifications()
-        
         var completedExercisesLog: [CompletedExercise] = []
         for exercise in workout.exercises {
-            let setsForThisExercise = exercise.sets
-                .compactMap { completedSets[$0.id] }
-            
+            let setsForThisExercise = exercise.sets.compactMap { completedSets[$0.id] }
             if !setsForThisExercise.isEmpty {
                 completedExercisesLog.append(CompletedExercise(name: exercise.name, sets: setsForThisExercise))
             }
         }
-        
         let log = WorkoutLog(date: Date(), workoutName: workout.name, duration: totalElapsedTime, completedExercises: completedExercisesLog)
-        
         self.finalLog = log
         store.addWorkoutLog(log)
         showCompletionAlert = true
@@ -191,32 +177,36 @@ struct ActiveWorkoutView: View {
 }
 
 
-// Unchanged, required for compilation
+// UPDATED: This view now uses a compact, column-based layout.
 struct ActiveSetRow: View {
     let setNumber: Int
     let plannedSet: WorkoutSet
-    let lastPerformance: CompletedSet?
+    let lastPerformance: CompletedSet? // This is now unused but kept for potential future use
     let isCompleted: Bool
     let onComplete: () -> Void
     
     var body: some View {
         HStack {
+            // Set Number Circle
             Text("\(setNumber)")
-                .font(.headline)
+                .bold()
                 .frame(width: 30, height: 30)
                 .background(isCompleted ? Color.green : Color.gray.opacity(0.3))
                 .foregroundColor(isCompleted ? .white : .primary)
                 .clipShape(Circle())
-            VStack(alignment: .leading) {
-                Text("\(plannedSet.reps) reps at \(String(format: "%.1f", plannedSet.weight)) kg")
-                    .font(.body)
-                if let last = lastPerformance {
-                    Text("Last: \(last.reps) x \(String(format: "%.1f", last.weight)) kg")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            Spacer()
+                .padding(.trailing, 10)
+            
+            // Set Details in Columns
+            Text("\(plannedSet.reps)")
+                .frame(maxWidth: .infinity)
+            
+            Text(String(format: "%.1f", plannedSet.weight))
+                .frame(maxWidth: .infinity)
+                
+            Text("\(plannedSet.restTimeInSeconds)s")
+                .frame(maxWidth: .infinity)
+
+            // Completion Button
             Button(action: onComplete) {
                 Image(systemName: isCompleted ? "checkmark.circle.fill" : "circle")
                     .font(.title)
@@ -225,6 +215,8 @@ struct ActiveSetRow: View {
             .buttonStyle(.plain)
             .disabled(isCompleted)
         }
-        .padding(.vertical, 5)
+        .font(.title3) // Larger font for better readability
+        .multilineTextAlignment(.center)
+        .padding(.vertical, 8)
     }
 }

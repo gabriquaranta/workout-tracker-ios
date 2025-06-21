@@ -30,6 +30,7 @@ struct WorkoutsView: View {
                 }
             }
             .sheet(isPresented: $isAddingWorkout) {
+                // The AddWorkoutView now directly accesses the store via the environment
                 AddWorkoutView(path: $path)
             }
             .navigationDestination(for: Workout.self) { workout in
@@ -52,19 +53,14 @@ struct WorkoutsView: View {
 }
 
 
-// UPDATED: Removed the redundant exercise preview text from the main row.
 struct WorkoutRowView: View {
     @Binding var workout: Workout
     @Binding var path: NavigationPath
     @State private var isExpanded = false
     
-    // REMOVED: The `exercisePreview` computed property is no longer needed.
-    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // This is the always-visible top row
             HStack(spacing: 8) {
-                // Button to control the expansion
                 Button(action: { withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() } }) {
                     HStack {
                         Text(workout.name)
@@ -72,45 +68,32 @@ struct WorkoutRowView: View {
                             .fontWeight(.bold)
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
-                        
-                        Image(systemName: "chevron.down") // Changed to chevron.down for better UX
+                        Image(systemName: "chevron.down")
                             .font(.caption.weight(.bold))
                             .rotationEffect(.degrees(isExpanded ? 0 : -90))
                     }
                 }
                 .buttonStyle(.plain)
-                
                 Spacer()
-                
-                // Action buttons
                 HStack(spacing: 8) {
-                    Button { path.append(workout) } label: {
-                        Image(systemName: "pencil")
-                    }
-                    .tint(.accentColor)
-                    
-                    Button { path.append(workout.id.uuidString) } label: {
-                        Image(systemName: "play.fill")
-                    }
-                    .tint(.green)
+                    Button { path.append(workout) } label: { Image(systemName: "pencil") }
+                        .tint(.accentColor)
+                    Button { path.append(workout.id.uuidString) } label: { Image(systemName: "play.fill") }
+                        .tint(.green)
                 }
                 .buttonStyle(.bordered)
             }
-            
-            // This is the collapsible content area
             if isExpanded {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(workout.exercises) { exercise in
                         HStack(spacing: 8) {
-                            Circle()
-                                .frame(width: 6, height: 6)
-                                .foregroundColor(.secondary.opacity(0.5))
+                            Circle().frame(width: 6, height: 6).foregroundColor(.secondary.opacity(0.5))
                             Text(exercise.name)
                         }
                     }
                 }
                 .padding(.leading, 8)
-                .padding(.top, 4) // Add a little space between the top row and the list
+                .padding(.top, 4)
             }
         }
         .padding()
@@ -120,7 +103,7 @@ struct WorkoutRowView: View {
 }
 
 
-// This struct is unchanged but required for the file to compile
+// UPDATED: This view now includes the cloning functionality.
 struct AddWorkoutView: View {
     @EnvironmentObject var store: WorkoutStore
     @Environment(\.dismiss) var dismiss
@@ -130,23 +113,65 @@ struct AddWorkoutView: View {
     var body: some View {
         NavigationStack {
             Form {
-                TextField("Workout Name (e.g., Push Day)", text: $newWorkoutName)
+                // Section for creating a new, blank workout
+                Section(header: Text("Create a New Workout")) {
+                    TextField("Workout Name (e.g., Leg Day)", text: $newWorkoutName)
+                    Button("Create and Edit") {
+                        createBlankWorkout()
+                    }
+                    .disabled(newWorkoutName.isEmpty)
+                }
+                
+                // Section for cloning an existing workout
+                Section(header: Text("Or Copy an Existing Workout")) {
+                    if store.workouts.isEmpty {
+                        Text("No workouts to copy yet.")
+                            .foregroundColor(.secondary)
+                    } else {
+                        // We use the non-binding version of ForEach here
+                        ForEach(store.workouts) { workoutToCopy in
+                            HStack {
+                                Text(workoutToCopy.name)
+                                Spacer()
+                                Button("Copy") {
+                                    clone(workout: workoutToCopy)
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                        }
+                    }
+                }
             }
             .navigationTitle("New Workout")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") {
-                        let newWorkout = Workout(name: newWorkoutName, exercises: [])
-                        store.workouts.append(newWorkout)
-                        dismiss()
-                        path.append(newWorkout)
-                    }
-                    .disabled(newWorkoutName.isEmpty)
-                }
             }
         }
+    }
+    
+    private func createBlankWorkout() {
+        let newWorkout = Workout(name: newWorkoutName, exercises: [])
+        store.workouts.append(newWorkout)
+        dismiss()
+        // Navigate to the edit screen for the newly created workout
+        path.append(newWorkout)
+    }
+    
+    private func clone(workout: Workout) {
+        // Create a deep copy of the workout.
+        // Because our models are value types (structs), simple assignment creates a copy.
+        // We just need to give it a new ID.
+        var newWorkout = workout
+        newWorkout.id = UUID()
+        newWorkout.name = "\(workout.name) (Copy)"
+        
+        // Add the cloned workout to our store
+        store.workouts.append(newWorkout)
+        
+        // Dismiss the sheet and navigate to the new workout's edit screen
+        dismiss()
+        path.append(newWorkout)
     }
 }
