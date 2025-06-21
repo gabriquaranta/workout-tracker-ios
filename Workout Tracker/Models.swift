@@ -1,10 +1,3 @@
-//
-//  Models.swift
-//  Workout Tracker
-//
-//  Created by Gabriele Quaranta on 20/06/25.
-//
-
 // Models.swift
 
 import Foundation
@@ -29,12 +22,12 @@ struct WorkoutSet: Codable, Identifiable, Hashable {
     var restTimeInSeconds: Int = 60
 }
 
-// MARK: - Workout Log Models (for historical data)
+// MARK: - Workout Log Models
 struct WorkoutLog: Codable, Identifiable {
     var id = UUID()
     var date: Date
     var workoutName: String
-    var duration: TimeInterval // in seconds
+    var duration: TimeInterval
     var completedExercises: [CompletedExercise]
     
     var formattedDuration: String {
@@ -49,10 +42,23 @@ struct CompletedExercise: Codable, Identifiable {
     var id = UUID()
     var name: String
     var sets: [CompletedSet]
-    
+    var feedback: FeedbackRating? = nil // NEW: Add optional feedback property
+
     var totalVolume: Double {
         sets.reduce(0) { $0 + $1.volume }
     }
+}
+
+// NEW: An enum to represent the feedback rating.
+// It's Codable to be saved and RawRepresentable by a String for the emoji.
+enum FeedbackRating: String, Codable, CaseIterable, Identifiable {
+    case veryEasy = "😄"
+    case easy = "🙂"
+    case moderate = "😐"
+    case hard = "🥵"
+    case veryHard = "💀"
+    
+    var id: String { self.rawValue }
 }
 
 struct CompletedSet: Codable, Identifiable {

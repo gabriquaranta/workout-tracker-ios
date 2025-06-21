@@ -81,6 +81,17 @@ class WorkoutStore: ObservableObject {
         }
     }
     
+    // NEW: Function to get the feedback from the last time an exercise was done.
+    func getLastFeedback(for exerciseName: String) -> FeedbackRating? {
+        // History is sorted newest first, so the first match is the most recent.
+        for log in history {
+            if let exercise = log.completedExercises.first(where: { $0.name == exerciseName }) {
+                return exercise.feedback
+            }
+        }
+        return nil
+    }
+    
     // MARK: - Placeholder Data
     
     static func createPlaceholderWorkouts() -> [Workout] {

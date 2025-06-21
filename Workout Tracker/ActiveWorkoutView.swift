@@ -9,6 +9,8 @@ struct ActiveWorkoutView: View {
     
     let workout: Workout
     @State private var completedSets: [UUID: CompletedSet] = [:]
+    @State private var exerciseFeedback: [String: FeedbackRating] = [:] // [ExerciseName: Feedback]
+    
     @State private var workoutStartTime = Date()
     @State private var workoutTimer: Timer?
     @State private var totalElapsedTime: TimeInterval = 0
@@ -24,6 +26,7 @@ struct ActiveWorkoutView: View {
 
     var body: some View {
         VStack {
+            // Top timer bar
             HStack {
                 Text("Total Time")
                 Spacer()
@@ -35,6 +38,7 @@ struct ActiveWorkoutView: View {
             .cornerRadius(10)
             .padding(.horizontal)
             
+            // Rest timer overlay
             if isResting {
                 HStack {
                     Text("REST")
@@ -52,16 +56,16 @@ struct ActiveWorkoutView: View {
                 .transition(.scale.combined(with: .opacity))
             }
 
+            // Main List
             List {
                 ForEach(workout.exercises) { exercise in
                     Section(header: Text(exercise.name).font(.title2)) {
-                        // Display header for the columns
                         HStack {
-                            Spacer().frame(width: 40) // Spacer for the set number circle
+                            Spacer().frame(width: 40)
                             Text("Reps").frame(maxWidth: .infinity)
                             Text("Weight").frame(maxWidth: .infinity)
                             Text("Rest").frame(maxWidth: .infinity)
-                            Spacer().frame(width: 40) // Spacer for the checkmark
+                            Spacer().frame(width: 40)
                         }
                         .font(.caption.bold())
                         .foregroundColor(.secondary)
@@ -70,16 +74,23 @@ struct ActiveWorkoutView: View {
                             ActiveSetRow(
                                 setNumber: index + 1,
                                 plannedSet: set,
-                                lastPerformance: store.getLastPerformance(for: exercise.name),
                                 isCompleted: completedSets[set.id] != nil
                             ) {
                                 completeSet(set: set)
                             }
                         }
+                        
+                        // Feedback UI
+                        FeedbackView(
+                            exerciseName: exercise.name,
+                            lastFeedback: store.getLastFeedback(for: exercise.name),
+                            currentSelection: $exerciseFeedback[exercise.name]
+                        )
                     }
                 }
             }
             
+            // Finish Button
             Button(action: finishWorkout) {
                 Text("Finish Workout")
                     .font(.headline)
@@ -108,6 +119,13 @@ struct ActiveWorkoutView: View {
         }
     }
     
+    // MARK: - Haptics
+    private func hapticFeedback(style: UIImpactFeedbackGenerator.FeedbackStyle) {
+        let generator = UIImpactFeedbackGenerator(style: style)
+        generator.impactOccurred()
+    }
+    
+    // MARK: - Timer and Logic
     private func formattedTime(_ interval: TimeInterval) -> String {
         let formatter = DateComponentsFormatter()
         formatter.allowedUnits = [.hour, .minute, .second]
@@ -131,6 +149,8 @@ struct ActiveWorkoutView: View {
     }
     
     private func completeSet(set: WorkoutSet) {
+        hapticFeedback(style: .light)
+        
         completedSets[set.id] = CompletedSet(reps: set.reps, weight: set.weight)
         restTimeRemaining = set.restTimeInSeconds
         if restTimeRemaining > 0 {
@@ -161,15 +181,23 @@ struct ActiveWorkoutView: View {
     }
     
     private func finishWorkout() {
+        hapticFeedback(style: .heavy)
+        
         stopAllTimersAndNotifications()
+        
         var completedExercisesLog: [CompletedExercise] = []
         for exercise in workout.exercises {
             let setsForThisExercise = exercise.sets.compactMap { completedSets[$0.id] }
             if !setsForThisExercise.isEmpty {
-                completedExercisesLog.append(CompletedExercise(name: exercise.name, sets: setsForThisExercise))
+                let feedback = exerciseFeedback[exercise.name]
+                completedExercisesLog.append(
+                    CompletedExercise(name: exercise.name, sets: setsForThisExercise, feedback: feedback)
+                )
             }
         }
+        
         let log = WorkoutLog(date: Date(), workoutName: workout.name, duration: totalElapsedTime, completedExercises: completedExercisesLog)
+        
         self.finalLog = log
         store.addWorkoutLog(log)
         showCompletionAlert = true
@@ -177,17 +205,56 @@ struct ActiveWorkoutView: View {
 }
 
 
-// UPDATED: This view now uses a compact, column-based layout.
+// NEW: A dedicated view for the feedback UI
+struct FeedbackView: View {
+    let exerciseName: String
+    let lastFeedback: FeedbackRating?
+    @Binding var currentSelection: FeedbackRating?
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let last = lastFeedback {
+                Text("Last time: \(last.rawValue)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            
+            HStack {
+                Text("How did it feel?")
+                    .font(.caption)
+                Spacer()
+                ForEach(FeedbackRating.allCases) { rating in
+                    Button(action: {
+                        if currentSelection == rating {
+                            currentSelection = nil
+                        } else {
+                            currentSelection = rating
+                        }
+                    }) {
+                        Text(rating.rawValue)
+                            .font(.title2)
+                            .scaleEffect(currentSelection == rating ? 1.2 : 1.0)
+                            .opacity(currentSelection == rating ? 1.0 : 0.5)
+                    }
+                    .buttonStyle(.plain)
+                    .animation(.spring(), value: currentSelection)
+                }
+            }
+        }
+        .padding(.vertical, 8)
+    }
+}
+
+
+// CORRECTED: This now has its body and is a valid View.
 struct ActiveSetRow: View {
     let setNumber: Int
     let plannedSet: WorkoutSet
-    let lastPerformance: CompletedSet? // This is now unused but kept for potential future use
     let isCompleted: Bool
     let onComplete: () -> Void
     
     var body: some View {
         HStack {
-            // Set Number Circle
             Text("\(setNumber)")
                 .bold()
                 .frame(width: 30, height: 30)
@@ -196,7 +263,6 @@ struct ActiveSetRow: View {
                 .clipShape(Circle())
                 .padding(.trailing, 10)
             
-            // Set Details in Columns
             Text("\(plannedSet.reps)")
                 .frame(maxWidth: .infinity)
             
@@ -206,7 +272,6 @@ struct ActiveSetRow: View {
             Text("\(plannedSet.restTimeInSeconds)s")
                 .frame(maxWidth: .infinity)
 
-            // Completion Button
             Button(action: onComplete) {
                 Image(systemName: isCompleted ? "checkmark.circle.fill" : "circle")
                     .font(.title)
@@ -215,7 +280,7 @@ struct ActiveSetRow: View {
             .buttonStyle(.plain)
             .disabled(isCompleted)
         }
-        .font(.title3) // Larger font for better readability
+        .font(.title3)
         .multilineTextAlignment(.center)
         .padding(.vertical, 8)
     }
