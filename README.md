@@ -8,7 +8,7 @@ A simple snappy workout tracking app built entirely with SwiftUI. This app allow
   - A live workout timer tracks the total session duration.
   - Check off sets as you complete them.
   - An automatic rest timer starts after each completed set.
-  - Foreground notifications alert when the rest period is over. \[NOT WORKING RN\]
+  - Foreground notifications alert when the rest period is over.
 - **Performance Stats**:
   - A dedicated stats tab lists every exercise you've ever performed.
   - View a graph of max set volume (reps * weight) for each exercise over time.
@@ -22,7 +22,7 @@ A simple snappy workout tracking app built entirely with SwiftUI. This app allow
 - UI Framework: SwiftUI (100% native)
 - Charts: Apple's Charts Framework (iOS 16+)
 - Data Persistence: UserDefaults with Codable for simple and fast data storage.
-- Notifications: UserNotifications Framework for handling rest timer alerts. \[NOT WORKING RN\]
+- Notifications: UserNotifications Framework for handling rest timer alerts.
 - 
 ## How to Run
 #### Prerequisites
