@@ -5,8 +5,9 @@ A simple snappy workout tracking app built entirely with SwiftUI. This app allow
   <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_3372.PNG" width="180" />
   <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_3373.PNG" width="180" />
   <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_3374.PNG" width="180" />
-  <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_3375.PNG" width="180" /> 
+  <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_3375.PNG" width="180" />
   <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_3376.PNG" width="180" />
+  <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_3377.PNG" width="180" />
 </p>
 
 ## Features
