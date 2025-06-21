@@ -1,10 +1,3 @@
-//
-//  WorkoutStore.swift
-//  Workout Tracker
-//
-//  Created by Gabriele Quaranta on 20/06/25.
-//
-
 // WorkoutStore.swift
 
 import SwiftUI
@@ -27,7 +20,6 @@ class WorkoutStore: ObservableObject {
     private let historyKey = "workoutStore_history"
 
     init() {
-        // Load saved workouts or create placeholder data
         if let data = UserDefaults.standard.data(forKey: workoutsKey) {
             if let decodedWorkouts = try? JSONDecoder().decode([Workout].self, from: data) {
                 self.workouts = decodedWorkouts
@@ -38,7 +30,6 @@ class WorkoutStore: ObservableObject {
             self.workouts = Self.createPlaceholderWorkouts()
         }
         
-        // Load saved history
         if let data = UserDefaults.standard.data(forKey: historyKey) {
             if let decodedHistory = try? JSONDecoder().decode([WorkoutLog].self, from: data) {
                 self.history = decodedHistory
@@ -65,7 +56,13 @@ class WorkoutStore: ObservableObject {
     // MARK: - Helper Functions
     
     func addWorkoutLog(_ log: WorkoutLog) {
-        history.insert(log, at: 0) // Add to the top for recent first
+        history.insert(log, at: 0)
+    }
+    
+    // NEW: Function to clear only the workout history.
+    func clearHistory() {
+        history.removeAll()
+        // The didSet property observer on `history` will automatically call saveHistory().
     }
     
     func getLastPerformance(for exerciseName: String) -> CompletedSet? {

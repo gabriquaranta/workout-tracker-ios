@@ -23,8 +23,9 @@ struct WorkoutEditView: View {
                             exercise.sets.remove(atOffsets: indices)
                         }
                         
+                        // UPDATED: The logic for this button has been changed.
                         Button("Add Set") {
-                            exercise.sets.append(WorkoutSet())
+                            addSet(to: $exercise)
                         }
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, 8)
@@ -57,17 +58,32 @@ struct WorkoutEditView: View {
         workout.exercises.append(newExercise)
         newExerciseName = ""
     }
+    
+    // NEW: Extracted the "Add Set" logic into its own function for clarity.
+    private func addSet(to exercise: Binding<Exercise>) {
+        // Check if there is a last set to copy from.
+        if let lastSet = exercise.wrappedValue.sets.last {
+            // If yes, create a new set with the same values.
+            // A new UUID is generated automatically.
+            let newSet = WorkoutSet(
+                reps: lastSet.reps,
+                weight: lastSet.weight,
+                restTimeInSeconds: lastSet.restTimeInSeconds
+            )
+            exercise.wrappedValue.sets.append(newSet)
+        } else {
+            // If no, add a brand new set with the default values.
+            exercise.wrappedValue.sets.append(WorkoutSet())
+        }
+    }
 }
 
 
-// UPDATED: Replaced the generic helper view with an explicit layout.
-// This resolves the compiler error by being specific about the data types.
 struct SetEditRow: View {
     @Binding var set: WorkoutSet
     
     var body: some View {
         HStack(alignment: .bottom, spacing: 16) {
-            // Reps Input (for Int)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Reps")
                     .font(.callout)
@@ -78,7 +94,6 @@ struct SetEditRow: View {
                     .frame(minWidth: 50)
             }
             
-            // Weight Input (for Double)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Wt")
                     .font(.callout)
@@ -89,7 +104,6 @@ struct SetEditRow: View {
                     .frame(minWidth: 50)
             }
 
-            // Rest Input (for Int) with unit
             HStack(alignment: .bottom, spacing: 2) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Rest")
@@ -102,7 +116,7 @@ struct SetEditRow: View {
                 }
                 Text("s")
                     .font(.callout)
-                    .padding(.bottom, 6) // Align with the text field's baseline
+                    .padding(.bottom, 6)
             }
             Spacer()
         }
