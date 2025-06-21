@@ -6,18 +6,37 @@ struct WorkoutsView: View {
     @EnvironmentObject var store: WorkoutStore
     @State private var isAddingWorkout = false
     @State private var path = NavigationPath()
+    
+    private var formattedTotalTime: String {
+        let totalSeconds = store.history.reduce(0) { $0 + $1.duration }
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.hour, .minute]
+        formatter.unitsStyle = .abbreviated
+        return formatter.string(from: totalSeconds) ?? "0m"
+    }
 
     var body: some View {
         NavigationStack(path: $path) {
-            List {
-                ForEach($store.workouts) { $workout in
-                    WorkoutRowView(workout: $workout, path: $path)
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+            // UPDATED: Replaced the List with a ScrollView and VStack for full layout control.
+            ScrollView {
+                VStack(spacing: 16) {
+                    // This is the stats bar. It has no extra lines around it.
+                    HStack(spacing: 30) {
+                        StatPillView(value: "\(store.history.count)", label: "Workouts")
+                        Divider().frame(height: 30)
+                        StatPillView(value: formattedTotalTime, label: "Total Time")
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+
+                    // The ForEach loop now lives inside the VStack.
+                    ForEach($store.workouts) { $workout in
+                        WorkoutRowView(workout: $workout, path: $path)
+                    }
+                    .onDelete(perform: deleteWorkout) // onDelete still works with EditButton
                 }
-                .onDelete(perform: deleteWorkout)
+                .padding(.horizontal) // Add horizontal padding to the whole stack
             }
-            .listStyle(.plain)
             .navigationTitle("My Workouts")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -30,7 +49,6 @@ struct WorkoutsView: View {
                 }
             }
             .sheet(isPresented: $isAddingWorkout) {
-                // The AddWorkoutView now directly accesses the store via the environment
                 AddWorkoutView(path: $path)
             }
             .navigationDestination(for: Workout.self) { workout in
@@ -53,6 +71,24 @@ struct WorkoutsView: View {
 }
 
 
+struct StatPillView: View {
+    let value: String
+    let label: String
+    
+    var body: some View {
+        VStack {
+            Text(value)
+                .font(.title2)
+                .fontWeight(.bold)
+            Text(label)
+                .font(.caption)
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
+
+// The rest of the file (WorkoutRowView and AddWorkoutView) remains unchanged.
 struct WorkoutRowView: View {
     @Binding var workout: Workout
     @Binding var path: NavigationPath
@@ -102,8 +138,6 @@ struct WorkoutRowView: View {
     }
 }
 
-
-// UPDATED: This view now includes the cloning functionality.
 struct AddWorkoutView: View {
     @EnvironmentObject var store: WorkoutStore
     @Environment(\.dismiss) var dismiss
@@ -113,7 +147,6 @@ struct AddWorkoutView: View {
     var body: some View {
         NavigationStack {
             Form {
-                // Section for creating a new, blank workout
                 Section(header: Text("Create a New Workout")) {
                     TextField("Workout Name (e.g., Leg Day)", text: $newWorkoutName)
                     Button("Create and Edit") {
@@ -121,14 +154,11 @@ struct AddWorkoutView: View {
                     }
                     .disabled(newWorkoutName.isEmpty)
                 }
-                
-                // Section for cloning an existing workout
                 Section(header: Text("Or Copy an Existing Workout")) {
                     if store.workouts.isEmpty {
                         Text("No workouts to copy yet.")
                             .foregroundColor(.secondary)
                     } else {
-                        // We use the non-binding version of ForEach here
                         ForEach(store.workouts) { workoutToCopy in
                             HStack {
                                 Text(workoutToCopy.name)
@@ -155,22 +185,14 @@ struct AddWorkoutView: View {
         let newWorkout = Workout(name: newWorkoutName, exercises: [])
         store.workouts.append(newWorkout)
         dismiss()
-        // Navigate to the edit screen for the newly created workout
         path.append(newWorkout)
     }
     
     private func clone(workout: Workout) {
-        // Create a deep copy of the workout.
-        // Because our models are value types (structs), simple assignment creates a copy.
-        // We just need to give it a new ID.
         var newWorkout = workout
         newWorkout.id = UUID()
         newWorkout.name = "\(workout.name) (Copy)"
-        
-        // Add the cloned workout to our store
         store.workouts.append(newWorkout)
-        
-        // Dismiss the sheet and navigate to the new workout's edit screen
         dismiss()
         path.append(newWorkout)
     }
