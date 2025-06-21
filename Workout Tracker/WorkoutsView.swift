@@ -16,54 +16,59 @@ struct WorkoutsView: View {
     }
 
     var body: some View {
-        NavigationStack(path: $path) {
-            // UPDATED: Replaced the List with a ScrollView and VStack for full layout control.
-            ScrollView {
-                VStack(spacing: 16) {
-                    // This is the stats bar. It has no extra lines around it.
+            NavigationStack(path: $path) {
+                List {
+                    // UPDATED: The stats bar is now the first "row" of the list.
+                    // This gives us complete control over its background.
                     HStack(spacing: 30) {
                         StatPillView(value: "\(store.history.count)", label: "Workouts")
                         Divider().frame(height: 30)
                         StatPillView(value: formattedTotalTime, label: "Total Time")
                     }
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 8)
+                    // These modifiers make this row look like a floating header.
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
 
-                    // The ForEach loop now lives inside the VStack.
+                    // The workouts start from the next row.
                     ForEach($store.workouts) { $workout in
                         WorkoutRowView(workout: $workout, path: $path)
+                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
                     }
-                    .onDelete(perform: deleteWorkout) // onDelete still works with EditButton
+                    .onDelete(perform: deleteWorkout)
                 }
-                .padding(.horizontal) // Add horizontal padding to the whole stack
-            }
-            .navigationTitle("My Workouts")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { isAddingWorkout = true }) {
-                        Label("Add Workout", systemImage: "plus")
+                .listStyle(.plain)
+                .navigationTitle("My Workouts")
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: { isAddingWorkout = true }) {
+                            Label("Add Workout", systemImage: "plus")
+                        }
+                    }
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        EditButton()
                     }
                 }
-                ToolbarItem(placement: .navigationBarLeading) {
-                    EditButton()
+                .sheet(isPresented: $isAddingWorkout) {
+                    AddWorkoutView(path: $path)
                 }
-            }
-            .sheet(isPresented: $isAddingWorkout) {
-                AddWorkoutView(path: $path)
-            }
-            .navigationDestination(for: Workout.self) { workout in
-                if let index = store.workouts.firstIndex(where: { $0.id == workout.id }) {
-                    WorkoutEditView(workout: $store.workouts[index])
+                .navigationDestination(for: Workout.self) { workout in
+                    if let index = store.workouts.firstIndex(where: { $0.id == workout.id }) {
+                        WorkoutEditView(workout: $store.workouts[index])
+                    }
                 }
-            }
-            .navigationDestination(for: String.self) { workoutIdString in
-                if let workoutId = UUID(uuidString: workoutIdString),
-                   let workout = store.workouts.first(where: { $0.id == workoutId }) {
-                    ActiveWorkoutView(workout: workout)
+                .navigationDestination(for: String.self) { workoutIdString in
+                    if let workoutId = UUID(uuidString: workoutIdString),
+                       let workout = store.workouts.first(where: { $0.id == workoutId }) {
+                        ActiveWorkoutView(workout: workout)
+                    }
                 }
             }
         }
-    }
     
     private func deleteWorkout(at offsets: IndexSet) {
         store.workouts.remove(atOffsets: offsets)
@@ -88,7 +93,6 @@ struct StatPillView: View {
 }
 
 
-// The rest of the file (WorkoutRowView and AddWorkoutView) remains unchanged.
 struct WorkoutRowView: View {
     @Binding var workout: Workout
     @Binding var path: NavigationPath
@@ -133,11 +137,12 @@ struct WorkoutRowView: View {
             }
         }
         .padding()
-        .background(Color(.systemGray6))
+        .background(Color(.systemGray6)) // The background is now on our view
         .cornerRadius(12)
     }
 }
 
+// AddWorkoutView is unchanged.
 struct AddWorkoutView: View {
     @EnvironmentObject var store: WorkoutStore
     @Environment(\.dismiss) var dismiss
@@ -149,24 +154,19 @@ struct AddWorkoutView: View {
             Form {
                 Section(header: Text("Create a New Workout")) {
                     TextField("Workout Name (e.g., Leg Day)", text: $newWorkoutName)
-                    Button("Create and Edit") {
-                        createBlankWorkout()
-                    }
-                    .disabled(newWorkoutName.isEmpty)
+                    Button("Create and Edit") { createBlankWorkout() }
+                        .disabled(newWorkoutName.isEmpty)
                 }
                 Section(header: Text("Or Copy an Existing Workout")) {
                     if store.workouts.isEmpty {
-                        Text("No workouts to copy yet.")
-                            .foregroundColor(.secondary)
+                        Text("No workouts to copy yet.").foregroundColor(.secondary)
                     } else {
                         ForEach(store.workouts) { workoutToCopy in
                             HStack {
                                 Text(workoutToCopy.name)
                                 Spacer()
-                                Button("Copy") {
-                                    clone(workout: workoutToCopy)
-                                }
-                                .buttonStyle(.bordered)
+                                Button("Copy") { clone(workout: workoutToCopy) }
+                                    .buttonStyle(.bordered)
                             }
                         }
                     }

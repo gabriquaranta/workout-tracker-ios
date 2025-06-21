@@ -4,7 +4,7 @@ import SwiftUI
 
 struct WorkoutLogView: View {
     @EnvironmentObject var store: WorkoutStore
-    @State private var showingClearAlert = false // State to control the alert
+    @State private var showingClearAlert = false
 
     private var groupedLogs: [Date: [WorkoutLog]] {
         Dictionary(grouping: store.history) { log in
@@ -34,11 +34,26 @@ struct WorkoutLogView: View {
                                         .foregroundColor(.secondary)
                                 }
                                 
+                                // Display the workout notes if they exist.
+                                if let notes = log.notes, !notes.isEmpty {
+                                    Text(notes)
+                                        .font(.callout)
+                                        .italic()
+                                        .padding(.bottom, 5)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+
                                 ForEach(log.completedExercises) { exercise in
                                     VStack(alignment: .leading, spacing: 3) {
-                                        Text(exercise.name)
-                                            .font(.subheadline.weight(.semibold))
-                                            .padding(.top, 4)
+                                        HStack {
+                                            Text(exercise.name)
+                                                .font(.subheadline.weight(.semibold))
+                                            Spacer()
+                                            if let feedback = exercise.feedback {
+                                                Text(feedback.rawValue)
+                                            }
+                                        }
+                                        .padding(.top, 4)
                                         
                                         ForEach(Array(exercise.sets.enumerated()), id: \.element.id) { index, set in
                                             Text("Set \(index + 1):  \(set.reps) reps at \(String(format: "%.1f", set.weight)) kg")
@@ -57,7 +72,6 @@ struct WorkoutLogView: View {
         }
         .navigationTitle("Workout Log")
         .navigationBarTitleDisplayMode(.inline)
-        // UPDATED: Added a toolbar with the "Clear History" button
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button(role: .destructive) {
@@ -65,10 +79,9 @@ struct WorkoutLogView: View {
                 } label: {
                     Label("Clear History", systemImage: "trash")
                 }
-                .disabled(store.history.isEmpty) // Disable button if there's no history
+                .disabled(store.history.isEmpty)
             }
         }
-        // UPDATED: Added the confirmation alert
         .alert("Clear All Workout History?", isPresented: $showingClearAlert) {
             Button("Clear History", role: .destructive) {
                 store.clearHistory()

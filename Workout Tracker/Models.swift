@@ -29,7 +29,8 @@ struct WorkoutLog: Codable, Identifiable {
     var workoutName: String
     var duration: TimeInterval
     var completedExercises: [CompletedExercise]
-    
+    var notes: String? = nil // NEW: Add optional notes for the whole workout session
+
     var formattedDuration: String {
         let formatter = DateComponentsFormatter()
         formatter.allowedUnits = [.hour, .minute, .second]
@@ -42,15 +43,13 @@ struct CompletedExercise: Codable, Identifiable {
     var id = UUID()
     var name: String
     var sets: [CompletedSet]
-    var feedback: FeedbackRating? = nil // NEW: Add optional feedback property
+    var feedback: FeedbackRating? = nil
 
     var totalVolume: Double {
         sets.reduce(0) { $0 + $1.volume }
     }
 }
 
-// NEW: An enum to represent the feedback rating.
-// It's Codable to be saved and RawRepresentable by a String for the emoji.
 enum FeedbackRating: String, Codable, CaseIterable, Identifiable {
     case veryEasy = "😄"
     case easy = "🙂"
