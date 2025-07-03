@@ -18,10 +18,12 @@ struct ActiveWorkoutView: View {
     
     @State private var uiRestTimer: Timer?
     @State private var restTimeRemaining: Int = 0
+    
+    // NEW: We will store the exact date the rest period ends.
+    @State private var restEndDate: Date? = nil
+    
     @State private var isResting = false
     
-    // UPDATED: We no longer need a separate boolean for the sheet.
-    // The sheet's presentation will be tied directly to this optional object.
     @State private var finalLog: WorkoutLog?
     
     @State private var activity: Activity<WorkoutActivityAttributes>? = nil
@@ -104,19 +106,12 @@ struct ActiveWorkoutView: View {
         .navigationBarBackButtonHidden(true)
         .onAppear(perform: startWorkoutTimer)
         .onDisappear(perform: stopAllTimersAndNotifications)
-        // UPDATED: Use the item-based sheet modifier.
-        // It presents when $finalLog is not nil and passes the unwrapped log to the content closure.
         .sheet(item: $finalLog) { log in
             WorkoutCompletionView(log: log) { notes in
-                // This closure is called when the user taps "Done" in the sheet.
                 var finalLogWithNotes = log
                 finalLogWithNotes.notes = notes.isEmpty ? nil : notes
                 store.addWorkoutLog(finalLogWithNotes)
-                
-                // Set finalLog back to nil to programmatically dismiss the sheet.
                 finalLog = nil
-                
-                // Dismiss the main workout view.
                 dismiss()
             }
         }
@@ -203,20 +198,34 @@ struct ActiveWorkoutView: View {
         hapticFeedback(style: .light)
         
         completedSets[set.id] = CompletedSet(reps: set.reps, weight: set.weight)
-        restTimeRemaining = set.restTimeInSeconds
-        if restTimeRemaining > 0 {
-            let restEndDate = Date().addingTimeInterval(TimeInterval(restTimeRemaining))
+        
+        if set.restTimeInSeconds > 0 {
+            // UPDATED: Set the fixed end date here.
+            restEndDate = Date().addingTimeInterval(TimeInterval(set.restTimeInSeconds))
+            
             updateActivity(isResting: true, restEndDate: restEndDate)
-            scheduleRestNotification(in: TimeInterval(restTimeRemaining))
+            scheduleRestNotification(in: TimeInterval(set.restTimeInSeconds))
+            
             withAnimation { isResting = true }
             uiRestTimer?.invalidate()
+            
+            // This timer will now be resilient to backgrounding.
             uiRestTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-                if restTimeRemaining > 0 {
-                    restTimeRemaining -= 1
-                } else {
-                    uiRestTimer?.invalidate()
-                    withAnimation { isResting = false }
-                    updateActivity(isResting: false)
+                guard let endDate = self.restEndDate else {
+                    // This should not happen, but as a safeguard:
+                    self.uiRestTimer?.invalidate()
+                    withAnimation { self.isResting = false }
+                    return
+                }
+                
+                // Re-calculate remaining time on every tick.
+                let remaining = Int(round(endDate.timeIntervalSince(Date())))
+                self.restTimeRemaining = max(0, remaining)
+                
+                if self.restTimeRemaining == 0 {
+                    self.uiRestTimer?.invalidate()
+                    withAnimation { self.isResting = false }
+                    self.updateActivity(isResting: false)
                 }
             }
         }
@@ -256,10 +265,7 @@ struct ActiveWorkoutView: View {
             notes: nil
         )
         
-        // UPDATED: The only action needed to show the sheet is to set this variable.
         self.finalLog = log
-        
-        // Timers and activities are now stopped AFTER the sheet is presented.
         stopAllTimersAndNotifications()
     }
 }
