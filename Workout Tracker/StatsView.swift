@@ -7,6 +7,7 @@ struct StatsView: View {
     
     @State private var searchText = ""
     @State private var showWorkoutLog = false
+    @State private var showSettings = false
     
     private var filteredExerciseNames: [String] {
         let allNames = store.history.flatMap { $0.completedExercises.map { $0.name } }
@@ -64,10 +65,22 @@ struct StatsView: View {
                 .listStyle(.insetGrouped)
                 .searchable(text: $searchText, prompt: "Search Exercises")
                 .navigationTitle("Stats")
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showSettings = true
+                        } label: {
+                            Image(systemName: "gearshape")
+                        }
+                    }
+                }
                 .background(
                     NavigationLink(destination: WorkoutLogView(), isActive: $showWorkoutLog) { EmptyView() }
                         .hidden()
                 )
+                .sheet(isPresented: $showSettings) {
+                    SettingsView()
+                }
             }
         }
     }

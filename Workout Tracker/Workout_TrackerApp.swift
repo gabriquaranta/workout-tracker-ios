@@ -6,6 +6,7 @@ import UserNotifications
 @main
 struct WorkoutTrackerApp: App {
     @StateObject private var store = WorkoutStore()
+    @StateObject private var themeManager = ThemeManager()
     
     // CORRECTED: Use a simple 'let' constant. The delegate does not need to be an
     // @StateObject because it doesn't publish any changes for the UI to observe.
@@ -15,6 +16,8 @@ struct WorkoutTrackerApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(store)
+                .environmentObject(themeManager)
+                .preferredColorScheme(themeManager.currentTheme.colorScheme)
                 .onAppear {
                     // This line will now work correctly with the 'let' constant.
                     UNUserNotificationCenter.current().delegate = notificationDelegate
