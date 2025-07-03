@@ -150,10 +150,23 @@ struct StatPillView: View {
 struct WorkoutRowView: View {
     @Binding var workout: Workout
     @Binding var path: NavigationPath
+    @EnvironmentObject var store: WorkoutStore
     @State private var isExpanded = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            // today's workout indicator
+            if store.isWorkoutScheduledForToday(workout) {
+                HStack {
+                    Text("🏋️ Today's Workout:")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                    Spacer()
+                }
+                .padding(.bottom, -4)
+            }
+            
             HStack(spacing: 8) {
                 Button(action: { withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() } }) {
                     HStack {

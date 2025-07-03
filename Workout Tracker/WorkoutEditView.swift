@@ -14,6 +14,31 @@ struct WorkoutEditView: View {
                 TextField("e.g., Full Body 1", text: $workout.name)
             }
             
+            Section(header: Text("SCHEDULE")) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Select days to do this workout:")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 8) {
+                        ForEach(Weekday.allCases, id: \.self) { day in
+                            DaySelectionButton(
+                                day: day,
+                                isSelected: workout.scheduledDays.contains(day),
+                                onTap: {
+                                    if workout.scheduledDays.contains(day) {
+                                        workout.scheduledDays.remove(day)
+                                    } else {
+                                        workout.scheduledDays.insert(day)
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+                .padding(.vertical, 8)
+            }
+            
             Section(header: Text("EXERCISES")) {
                 ForEach($workout.exercises) { $exercise in
                     DisclosureGroup {
@@ -226,5 +251,25 @@ struct ExerciseNameField: View {
             name.lowercased().contains(input.lowercased()) && 
             name.lowercased() != input.lowercased()
         }
+    }
+}
+
+struct DaySelectionButton: View {
+    let day: Weekday
+    let isSelected: Bool
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            Text(day.shortName)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(isSelected ? .white : .primary)
+                .frame(width: 32, height: 32)
+                .background(
+                    Circle()
+                        .fill(isSelected ? Color.accentColor : Color(.systemGray5))
+                )
+        }
+        .buttonStyle(.plain)
     }
 }

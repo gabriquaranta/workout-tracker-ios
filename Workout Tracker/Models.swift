@@ -7,6 +7,7 @@ struct Workout: Codable, Identifiable, Hashable {
     var id = UUID()
     var name: String
     var exercises: [Exercise]
+    var scheduledDays: Set<Weekday> = []
 }
 
 struct Exercise: Codable, Identifiable, Hashable {
@@ -90,5 +91,39 @@ struct CompletedSet: Codable, Identifiable {
     
     var volume: Double {
         Double(reps) * weight
+    }
+}
+
+enum Weekday: Int, CaseIterable, Codable {
+    case monday = 2
+    case tuesday = 3
+    case wednesday = 4
+    case thursday = 5
+    case friday = 6
+    case saturday = 7
+    case sunday = 1
+    
+    var shortName: String {
+        switch self {
+        case .monday: return "M"
+        case .tuesday: return "T"
+        case .wednesday: return "W"
+        case .thursday: return "T"
+        case .friday: return "F"
+        case .saturday: return "S"
+        case .sunday: return "S"
+        }
+    }
+    
+    var fullName: String {
+        switch self {
+        case .monday: return "Monday"
+        case .tuesday: return "Tuesday"
+        case .wednesday: return "Wednesday"
+        case .thursday: return "Thursday"
+        case .friday: return "Friday"
+        case .saturday: return "Saturday"
+        case .sunday: return "Sunday"
+        }
     }
 }

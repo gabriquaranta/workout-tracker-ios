@@ -116,6 +116,17 @@ class WorkoutStore: ObservableObject {
         return uniqueNames
     }
 
+    func getTodayWeekday() -> Weekday {
+        let calendar = Calendar.current
+        let weekday = calendar.component(.weekday, from: Date())
+        return Weekday(rawValue: weekday) ?? .sunday
+    }
+
+    func isWorkoutScheduledForToday(_ workout: Workout) -> Bool {
+        let today = getTodayWeekday()
+        return workout.scheduledDays.contains(today)
+    }
+
     // MARK: - Helper Functions
     
     func addWorkoutLog(_ log: WorkoutLog) {
@@ -185,11 +196,11 @@ class WorkoutStore: ObservableObject {
                     WorkoutSet(reps: 8, weight: 95, restTimeInSeconds: 60),
                     WorkoutSet(reps: 8, weight: 95, restTimeInSeconds: 60)
                 ])
-            ]),
+            ], scheduledDays: [.monday, .wednesday, .friday]),
             Workout(name: "Push Day", exercises: [
                 Exercise(name: "Overhead Press", sets: [WorkoutSet()]),
                 Exercise(name: "Incline Dumbbell Press", sets: [WorkoutSet()]),
-            ])
+            ], scheduledDays: [.tuesday, .thursday])
         ]
     }
 }
