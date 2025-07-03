@@ -22,6 +22,17 @@ struct WorkoutSet: Codable, Identifiable, Hashable {
     var restTimeInSeconds: Int = 60
 }
 
+// MARK: - Live Workout Model
+struct LiveWorkoutSet: Identifiable {
+    let id: UUID
+    var reps: Int
+    var weight: Double
+    var restTimeInSeconds: Int
+    var isCompleted: Bool = false
+    var wasModified: Bool = false // NEW: Tracks if reps or weight were changed.
+}
+
+
 // MARK: - Workout Log Models
 struct WorkoutLog: Codable, Identifiable {
     var id = UUID()
@@ -29,7 +40,7 @@ struct WorkoutLog: Codable, Identifiable {
     var workoutName: String
     var duration: TimeInterval
     var completedExercises: [CompletedExercise]
-    var notes: String? = nil // NEW: Add optional notes for the whole workout session
+    var notes: String? = nil
 
     var formattedDuration: String {
         let formatter = DateComponentsFormatter()

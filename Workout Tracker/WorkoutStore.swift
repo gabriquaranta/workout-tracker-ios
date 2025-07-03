@@ -59,17 +59,40 @@ class WorkoutStore: ObservableObject {
         history.insert(log, at: 0)
     }
     
-    // NEW: Function to clear only the workout history.
-    func clearHistory() {
-        history.removeAll()
-        // The didSet property observer on `history` will automatically call saveHistory().
+    // NEW: Function to save changes from a workout back to the plan
+    func updateWorkoutPlan(from liveSets: [UUID: [LiveWorkoutSet]], for workoutID: UUID) {
+        // Find the index of the workout we need to update
+        guard let workoutIndex = workouts.firstIndex(where: { $0.id == workoutID }) else { return }
+        
+        // Iterate through all the exercises in that workout
+        for i in 0..<workouts[workoutIndex].exercises.count {
+            let exerciseID = workouts[workoutIndex].exercises[i].id
+            
+            // If we have live data for this exercise...
+            if let exerciseLiveSets = liveSets[exerciseID] {
+                // ...iterate through its sets
+                for j in 0..<workouts[workoutIndex].exercises[i].sets.count {
+                    let setID = workouts[workoutIndex].exercises[i].sets[j].id
+                    
+                    // Find the corresponding live set that was modified
+                    if let modifiedSet = exerciseLiveSets.first(where: { $0.id == setID && $0.wasModified }) {
+                        // Update the plan with the new values
+                        workouts[workoutIndex].exercises[i].sets[j].reps = modifiedSet.reps
+                        workouts[workoutIndex].exercises[i].sets[j].weight = modifiedSet.weight
+                    }
+                }
+            }
+        }
     }
     
-    func getLastPerformance(for exerciseName: String) -> CompletedSet? {
+    func clearHistory() {
+        history.removeAll()
+    }
+    
+    func getLastFeedback(for exerciseName: String) -> FeedbackRating? {
         for log in history {
-            if let exercise = log.completedExercises.first(where: { $0.name == exerciseName }),
-               let lastSet = exercise.sets.last {
-                return lastSet
+            if let exercise = log.completedExercises.first(where: { $0.name == exerciseName }) {
+                return exercise.feedback
             }
         }
         return nil
@@ -81,20 +104,9 @@ class WorkoutStore: ObservableObject {
         }
     }
     
-    // NEW: Function to get the feedback from the last time an exercise was done.
-    func getLastFeedback(for exerciseName: String) -> FeedbackRating? {
-        // History is sorted newest first, so the first match is the most recent.
-        for log in history {
-            if let exercise = log.completedExercises.first(where: { $0.name == exerciseName }) {
-                return exercise.feedback
-            }
-        }
-        return nil
-    }
-    
     // MARK: - Placeholder Data
-    
     static func createPlaceholderWorkouts() -> [Workout] {
+        // ... (placeholder data is unchanged) ...
         return [
             Workout(name: "Full Body Strength A", exercises: [
                 Exercise(name: "Squat", sets: [

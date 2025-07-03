@@ -9,8 +9,11 @@ struct ActiveWorkoutView: View {
     @Environment(\.dismiss) var dismiss
     
     let workout: Workout
-    @State private var completedSets: [UUID: CompletedSet] = [:]
+    
+    @State private var liveSetsByExercise: [UUID: [LiveWorkoutSet]] = [:]
     @State private var exerciseFeedback: [String: FeedbackRating] = [:]
+    
+    @State private var setBeingEdited: LiveWorkoutSet? = nil
     
     @State private var workoutStartTime = Date()
     @State private var workoutTimer: Timer?
@@ -18,10 +21,7 @@ struct ActiveWorkoutView: View {
     
     @State private var uiRestTimer: Timer?
     @State private var restTimeRemaining: Int = 0
-    
-    // NEW: We will store the exact date the rest period ends.
     @State private var restEndDate: Date? = nil
-    
     @State private var isResting = false
     
     @State private var finalLog: WorkoutLog?
@@ -29,269 +29,273 @@ struct ActiveWorkoutView: View {
     @State private var activity: Activity<WorkoutActivityAttributes>? = nil
     private let restNotificationIdentifier = "workout_rest_notification"
 
+    // MARK: - Body and Sub-Views
+    
     var body: some View {
         VStack {
-            HStack {
-                Text("Total Time")
-                Spacer()
-                Text(formattedTime(totalElapsedTime))
-            }
-            .font(.headline)
-            .padding()
-            .background(Color(.systemGray6))
-            .cornerRadius(10)
-            .padding(.horizontal)
-            
+            timerBar
             if isResting {
-                HStack {
-                    Text("REST")
-                        .font(.title).bold()
-                        .foregroundColor(.black)
-                    Spacer()
-                    Text("\(restTimeRemaining)s")
-                        .font(.title).bold().monospacedDigit()
-                        .foregroundColor(.black)
-                }
-                .padding()
-                .background(Color.yellow)
-                .cornerRadius(10)
-                .padding(.horizontal)
-                .transition(.scale.combined(with: .opacity))
+                restOverlay
             }
-
-            List {
-                ForEach(workout.exercises) { exercise in
-                    Section(header: Text(exercise.name).font(.title2)) {
-                        HStack {
-                            Spacer().frame(width: 40)
-                            Text("Reps").frame(maxWidth: .infinity)
-                            Text("Weight").frame(maxWidth: .infinity)
-                            Text("Rest").frame(maxWidth: .infinity)
-                            Spacer().frame(width: 40)
-                        }
-                        .font(.caption.bold())
-                        .foregroundColor(.secondary)
-                        
-                        ForEach(Array(exercise.sets.enumerated()), id: \.element.id) { index, set in
-                            ActiveSetRow(
-                                setNumber: index + 1,
-                                plannedSet: set,
-                                isCompleted: completedSets[set.id] != nil
-                            ) {
-                                completeSet(set: set)
-                            }
-                        }
-                        
-                        FeedbackView(
-                            exerciseName: exercise.name,
-                            lastFeedback: store.getLastFeedback(for: exercise.name),
-                            currentSelection: $exerciseFeedback[exercise.name]
-                        )
-                    }
-                }
-            }
-            
-            Button(action: finishWorkout) {
-                Text("Finish Workout")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-            }
-            .padding()
-            .background(Color.green)
-            .foregroundColor(.white)
-            .cornerRadius(10)
-            .padding()
+            workoutList
+            finishButton
         }
         .navigationTitle(workout.name)
         .navigationBarBackButtonHidden(true)
-        .onAppear(perform: startWorkoutTimer)
+        .onAppear(perform: setupLiveWorkout)
         .onDisappear(perform: stopAllTimersAndNotifications)
         .sheet(item: $finalLog) { log in
-            WorkoutCompletionView(log: log) { notes in
-                var finalLogWithNotes = log
-                finalLogWithNotes.notes = notes.isEmpty ? nil : notes
-                store.addWorkoutLog(finalLogWithNotes)
-                finalLog = nil
-                dismiss()
+            WorkoutCompletionView(
+                store: store,
+                log: log,
+                liveSets: liveSetsByExercise,
+                workoutID: workout.id,
+                onFinish: { finalLogWithNotes in
+                    store.addWorkoutLog(finalLogWithNotes)
+                    finalLog = nil
+                    dismiss()
+                }
+            )
+        }
+        .sheet(item: $setBeingEdited) { setToEdit in
+            SetEditingSheetView(setCopy: setToEdit) { updatedSet in
+                update(liveSet: updatedSet)
+                setBeingEdited = nil
             }
         }
     }
     
-    // MARK: - Haptics
-    private func hapticFeedback(style: UIImpactFeedbackGenerator.FeedbackStyle) {
-        let generator = UIImpactFeedbackGenerator(style: style)
-        generator.impactOccurred()
-    }
-    
-    // MARK: - Live Activity Management
-    private func startWorkoutActivity() {
-        let attributes = WorkoutActivityAttributes(workoutName: workout.name)
-        let initialState = WorkoutActivityAttributes.ContentState(
-            timerEndDate: Date.now,
-            workoutTimerText: "00:00",
-            isResting: false
-        )
-        do {
-            activity = try Activity<WorkoutActivityAttributes>.request(
-                attributes: attributes,
-                content: .init(state: initialState, staleDate: nil),
-                pushType: nil
-            )
-            print("Live Activity started.")
-        } catch (let error) {
-            print("Error starting Live Activity: \(error.localizedDescription)")
+    private var timerBar: some View {
+        HStack {
+            Text("Total Time")
+            Spacer()
+            Text(formattedTime(totalElapsedTime))
         }
+        .font(.headline)
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(10)
+        .padding(.horizontal)
     }
     
-    private func updateActivity(isResting: Bool, restEndDate: Date? = nil) {
-        Task {
-            let state = WorkoutActivityAttributes.ContentState(
-                timerEndDate: restEndDate ?? Date(),
-                workoutTimerText: formattedTime(totalElapsedTime),
-                isResting: isResting
-            )
-            let content = ActivityContent(state: state, staleDate: nil)
-            await activity?.update(content)
+    private var restOverlay: some View {
+        HStack {
+            Text("REST")
+                .font(.title).bold()
+                .foregroundColor(.black)
+            Spacer()
+            Text("\(restTimeRemaining)s")
+                .font(.title).bold().monospacedDigit()
+                .foregroundColor(.black)
         }
+        .padding()
+        .background(Color.yellow)
+        .cornerRadius(10)
+        .padding(.horizontal)
+        .transition(.scale.combined(with: .opacity))
     }
     
-    private func endWorkoutActivity() {
-        Task {
-            let finalState = WorkoutActivityAttributes.ContentState(
-                timerEndDate: Date.now,
-                workoutTimerText: formattedTime(totalElapsedTime),
-                isResting: false
-            )
-            let content = ActivityContent(state: finalState, staleDate: nil)
-            await activity?.end(content, dismissalPolicy: .immediate)
-            print("Live Activity ended.")
+    private var workoutList: some View {
+        List {
+            ForEach(workout.exercises) { exercise in
+                Section(header: Text(exercise.name).font(.title2)) {
+                    HStack {
+                        Spacer().frame(width: 40)
+                        Text("Reps").frame(maxWidth: .infinity)
+                        Text("Weight").frame(maxWidth: .infinity)
+                        Text("Rest").frame(maxWidth: .infinity)
+                        Spacer().frame(width: 40)
+                    }
+                    .font(.caption.bold())
+                    .foregroundColor(.secondary)
+                    
+                    if let sets = liveSetsByExercise[exercise.id] {
+                        ForEach(sets.indices, id: \.self) { index in
+                            let liveSet = sets[index]
+                            ActiveSetRow(setNumber: index + 1, liveSet: liveSet) {
+                                setBeingEdited = liveSet
+                            } onComplete: {
+                                completeSet(exerciseID: exercise.id, setID: liveSet.id)
+                            }
+                        }
+                    }
+                }
+                Section {
+                    FeedbackView(
+                        exerciseName: exercise.name,
+                        lastFeedback: store.getLastFeedback(for: exercise.name),
+                        currentSelection: $exerciseFeedback[exercise.name]
+                    )
+                }
+            }
         }
+        .listStyle(.grouped)
     }
     
-    // MARK: - Timer and Logic
-    private func formattedTime(_ interval: TimeInterval) -> String {
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.hour, .minute, .second]
-        formatter.unitsStyle = .positional
-        formatter.zeroFormattingBehavior = .pad
-        return formatter.string(from: interval) ?? "00:00"
-    }
-
-    private func startWorkoutTimer() {
-        startWorkoutActivity()
-        workoutTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-            totalElapsedTime = Date().timeIntervalSince(workoutStartTime)
-            updateActivity(isResting: false)
+    private var finishButton: some View {
+        Button(action: finishWorkout) {
+            Text("Finish Workout")
+                .font(.headline)
+                .frame(maxWidth: .infinity)
         }
+        .padding()
+        .background(Color.green)
+        .foregroundColor(.white)
+        .cornerRadius(10)
+        .padding()
     }
     
-    private func stopAllTimersAndNotifications() {
-        workoutTimer?.invalidate()
-        uiRestTimer?.invalidate()
-        workoutTimer = nil
-        uiRestTimer = nil
-        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [restNotificationIdentifier])
-        endWorkoutActivity()
+    // MARK: - Helper Functions
+    
+    private func setupLiveWorkout() {
+        for exercise in workout.exercises {
+            liveSetsByExercise[exercise.id] = exercise.sets.map { planSet in
+                LiveWorkoutSet(id: planSet.id, reps: planSet.reps, weight: planSet.weight, restTimeInSeconds: planSet.restTimeInSeconds)
+            }
+        }
+        startWorkoutTimer()
     }
     
-    private func completeSet(set: WorkoutSet) {
+    private func update(liveSet: LiveWorkoutSet) {
+        guard let exerciseID = liveSetsByExercise.first(where: { $0.value.contains(where: { $0.id == liveSet.id }) })?.key,
+              let setIndex = liveSetsByExercise[exerciseID]?.firstIndex(where: { $0.id == liveSet.id }) else {
+            return
+        }
+        liveSetsByExercise[exerciseID]?[setIndex] = liveSet
+    }
+    
+    private func completeSet(exerciseID: UUID, setID: UUID) {
         hapticFeedback(style: .light)
+        guard let setIndex = liveSetsByExercise[exerciseID]?.firstIndex(where: { $0.id == setID }) else { return }
         
-        completedSets[set.id] = CompletedSet(reps: set.reps, weight: set.weight)
+        liveSetsByExercise[exerciseID]?[setIndex].isCompleted = true
+        let setToComplete = liveSetsByExercise[exerciseID]![setIndex]
         
-        if set.restTimeInSeconds > 0 {
-            // UPDATED: Set the fixed end date here.
-            restEndDate = Date().addingTimeInterval(TimeInterval(set.restTimeInSeconds))
-            
-            updateActivity(isResting: true, restEndDate: restEndDate)
-            scheduleRestNotification(in: TimeInterval(set.restTimeInSeconds))
-            
+        if setToComplete.restTimeInSeconds > 0 {
+            let endDate = Date().addingTimeInterval(TimeInterval(setToComplete.restTimeInSeconds))
+            self.restEndDate = endDate
+            updateActivity(isResting: true, restEndDate: endDate)
+            scheduleRestNotification(in: TimeInterval(setToComplete.restTimeInSeconds))
             withAnimation { isResting = true }
             uiRestTimer?.invalidate()
-            
-            // This timer will now be resilient to backgrounding.
             uiRestTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-                guard let endDate = self.restEndDate else {
-                    // This should not happen, but as a safeguard:
-                    self.uiRestTimer?.invalidate()
-                    withAnimation { self.isResting = false }
-                    return
-                }
-                
-                // Re-calculate remaining time on every tick.
-                let remaining = Int(round(endDate.timeIntervalSince(Date())))
+                guard let validEndDate = self.restEndDate else { self.uiRestTimer?.invalidate(); withAnimation { self.isResting = false }; return }
+                let remaining = Int(round(validEndDate.timeIntervalSince(Date())))
                 self.restTimeRemaining = max(0, remaining)
-                
                 if self.restTimeRemaining == 0 {
                     self.uiRestTimer?.invalidate()
                     withAnimation { self.isResting = false }
-                    self.updateActivity(isResting: false)
+                    self.updateActivity(isResting: false, restEndDate: nil)
                 }
             }
-        }
-    }
-    
-    private func scheduleRestNotification(in seconds: TimeInterval) {
-        let content = UNMutableNotificationContent()
-        content.title = "Workout Tracker"
-        content.body = "Rest time Over!"
-        content.sound = .default
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: seconds, repeats: false)
-        let request = UNNotificationRequest(identifier: restNotificationIdentifier, content: content, trigger: trigger)
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error { print("Error scheduling notification: \(error)") }
         }
     }
     
     private func finishWorkout() {
         hapticFeedback(style: .heavy)
-        
         var completedExercisesLog: [CompletedExercise] = []
         for exercise in workout.exercises {
-            let setsForThisExercise = exercise.sets.compactMap { completedSets[$0.id] }
-            if !setsForThisExercise.isEmpty {
+            let completedLiveSets = liveSetsByExercise[exercise.id]?.filter { $0.isCompleted } ?? []
+            if !completedLiveSets.isEmpty {
                 let feedback = exerciseFeedback[exercise.name]
-                completedExercisesLog.append(
-                    CompletedExercise(name: exercise.name, sets: setsForThisExercise, feedback: feedback)
-                )
+                let completedSetsForLog = completedLiveSets.map { liveSet in
+                    CompletedSet(reps: liveSet.reps, weight: liveSet.weight)
+                }
+                completedExercisesLog.append(CompletedExercise(name: exercise.name, sets: completedSetsForLog, feedback: feedback))
             }
         }
-        
-        let log = WorkoutLog(
-            date: Date(),
-            workoutName: workout.name,
-            duration: totalElapsedTime,
-            completedExercises: completedExercisesLog,
-            notes: nil
-        )
-        
+        let log = WorkoutLog(date: Date(), workoutName: workout.name, duration: totalElapsedTime, completedExercises: completedExercisesLog, notes: nil)
         self.finalLog = log
         stopAllTimersAndNotifications()
     }
+    
+    // MARK: - Haptics, Timers, Live Activities
+    
+    private func hapticFeedback(style: UIImpactFeedbackGenerator.FeedbackStyle) { let g = UIImpactFeedbackGenerator(style: style); g.impactOccurred() }
+    private func startWorkoutActivity() { let a = WorkoutActivityAttributes(workoutName: workout.name); let i = WorkoutActivityAttributes.ContentState(timerEndDate: Date.now, workoutTimerText: "00:00", isResting: false); do { activity = try Activity<WorkoutActivityAttributes>.request(attributes: a, content: .init(state: i, staleDate: nil), pushType: nil) } catch { print("Error: \(error.localizedDescription)") } }
+    private func updateActivity(isResting: Bool, restEndDate: Date?) { Task { let s = WorkoutActivityAttributes.ContentState(timerEndDate: restEndDate ?? Date(), workoutTimerText: formattedTime(totalElapsedTime), isResting: isResting); let c = ActivityContent(state: s, staleDate: nil); await activity?.update(c) } }
+    private func endWorkoutActivity() { Task { let f = WorkoutActivityAttributes.ContentState(timerEndDate: Date.now, workoutTimerText: formattedTime(totalElapsedTime), isResting: false); let c = ActivityContent(state: f, staleDate: nil); await activity?.end(c, dismissalPolicy: .immediate) } }
+    private func formattedTime(_ interval: TimeInterval) -> String { let f = DateComponentsFormatter(); f.allowedUnits = [.hour, .minute, .second]; f.unitsStyle = .positional; f.zeroFormattingBehavior = .pad; return f.string(from: interval) ?? "00:00" }
+    private func startWorkoutTimer() { startWorkoutActivity(); workoutTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in totalElapsedTime = Date().timeIntervalSince(workoutStartTime); updateActivity(isResting: false, restEndDate: nil) } }
+    private func stopAllTimersAndNotifications() { workoutTimer?.invalidate(); uiRestTimer?.invalidate(); workoutTimer = nil; uiRestTimer = nil; UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [restNotificationIdentifier]); endWorkoutActivity() }
+    private func scheduleRestNotification(in seconds: TimeInterval) { let c = UNMutableNotificationContent(); c.title = "Workout Tracker"; c.body = "Rest time Over!"; c.sound = .default; let t = UNTimeIntervalNotificationTrigger(timeInterval: seconds, repeats: false); let r = UNNotificationRequest(identifier: restNotificationIdentifier, content: c, trigger: t); UNUserNotificationCenter.current().add(r) }
 }
 
 
-// These sub-views are unchanged and correct.
-struct WorkoutCompletionView: View {
-    let log: WorkoutLog
-    let onDone: (String) -> Void
-    @State private var notes: String = ""
+// MARK: - Subviews
+
+struct SetEditingSheetView: View {
+    @State private var setCopy: LiveWorkoutSet
+    let onDone: (LiveWorkoutSet) -> Void
+    @Environment(\.dismiss) var dismiss
+    init(setCopy: LiveWorkoutSet, onDone: @escaping (LiveWorkoutSet) -> Void) {
+        self._setCopy = State(initialValue: setCopy)
+        self.onDone = onDone
+    }
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                Text("Workout Completed!").font(.largeTitle).bold()
-                VStack {
-                    Text(log.formattedDuration).font(.system(size: 40, weight: .bold, design: .rounded))
-                    Text("Total Time").font(.caption).foregroundStyle(.secondary)
-                }
+            Form {
+                Section("Edit Reps") { Stepper("\(setCopy.reps) reps", value: $setCopy.reps, in: 0...100) }
+                Section("Edit Weight") { Stepper("\(String(format: "%.1f", setCopy.weight)) kg", value: $setCopy.weight, in: 0...500, step: 0.5) }
+            }
+            .navigationTitle("Edit Set").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { setCopy.wasModified = true; onDone(setCopy) } } }
+        }
+    }
+}
+
+struct ActiveSetRow: View {
+    let setNumber: Int
+    let liveSet: LiveWorkoutSet
+    let onEdit: () -> Void
+    let onComplete: () -> Void
+    var body: some View {
+        HStack {
+            Text("\(setNumber)").bold().frame(width: 30, height: 30)
+                .background(liveSet.isCompleted ? Color.green : Color.gray.opacity(0.3))
+                .foregroundColor(liveSet.isCompleted ? .white : .primary).clipShape(Circle()).padding(.trailing, 10)
+            Button(action: onEdit) { Text("\(liveSet.reps)").frame(maxWidth: .infinity) }.disabled(liveSet.isCompleted)
+            Button(action: onEdit) { Text(String(format: "%.1f", liveSet.weight)).frame(maxWidth: .infinity) }.disabled(liveSet.isCompleted)
+            Text("\(liveSet.restTimeInSeconds)s").frame(maxWidth: .infinity).foregroundColor(.secondary)
+            Button(action: onComplete) { Image(systemName: "checkmark.circle").font(.title).foregroundColor(liveSet.isCompleted ? .green : .accentColor) }
+                .buttonStyle(.plain).disabled(liveSet.isCompleted)
+        }
+        .font(.title3).buttonStyle(.plain).multilineTextAlignment(.center).padding(.vertical, 8)
+    }
+}
+
+struct WorkoutCompletionView: View {
+    @ObservedObject var store: WorkoutStore
+    let log: WorkoutLog
+    let liveSets: [UUID: [LiveWorkoutSet]]
+    let workoutID: UUID
+    let onFinish: (WorkoutLog) -> Void
+    @State private var notes: String = ""
+    @State private var changesSaved: Bool = false
+    private var modifiedSets: [LiveWorkoutSet] {
+        liveSets.values.flatMap { $0 }.filter { $0.wasModified }
+    }
+    var body: some View {
+        NavigationStack {
+            VStack {
+                Text("Workout Completed!").font(.largeTitle).bold().padding(.top)
                 List {
-                    Section("Volume Per Exercise") {
-                        ForEach(log.completedExercises) { exercise in
-                            HStack {
-                                Text(exercise.name)
-                                Spacer()
-                                Text("\(String(format: "%.1f", exercise.totalVolume)) kg").foregroundStyle(.secondary)
+                    Section("Session Stats") { HStack { Text("Total Time"); Spacer(); Text(log.formattedDuration) } }
+                    if !modifiedSets.isEmpty {
+                        Section("Update Workout Plan?") {
+                            Text("You beat your plan! Save these new values for next time?").font(.callout)
+                            Button(action: {
+                                store.updateWorkoutPlan(from: liveSets, for: workoutID)
+                                withAnimation { changesSaved = true }
+                            }) {
+                                HStack {
+                                    Text("Save Changes to Plan")
+                                    Spacer()
+                                    if changesSaved { Image(systemName: "checkmark.circle.fill").foregroundColor(.green) }
+                                }
+                                .frame(maxWidth: .infinity)
                             }
+                            .tint(.blue).buttonStyle(.bordered).disabled(changesSaved)
                         }
                     }
                     Section("Workout Notes") {
@@ -299,58 +303,43 @@ struct WorkoutCompletionView: View {
                     }
                 }
                 .listStyle(.insetGrouped)
-                Button(action: { onDone(notes) }) { Text("Done").font(.headline).frame(maxWidth: .infinity) }
-                    .tint(.green).buttonStyle(.borderedProminent).padding()
+                Button(action: {
+                    var finalLog = log
+                    finalLog.notes = notes.isEmpty ? nil : notes
+                    onFinish(finalLog)
+                }) {
+                    Text("Finish Workout").font(.headline).frame(maxWidth: .infinity)
+                }
+                .tint(.green).buttonStyle(.borderedProminent).padding()
             }
-            .padding(.top)
+            .background(Color(.systemGroupedBackground))
         }
     }
 }
 
+// CORRECTED: The type is now consistently FeedbackRating
 struct FeedbackView: View {
     let exerciseName: String
     let lastFeedback: FeedbackRating?
     @Binding var currentSelection: FeedbackRating?
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if let last = lastFeedback {
-                Text("Last time: \(last.rawValue)").font(.caption).foregroundColor(.secondary)
-            }
+            if let last = lastFeedback { Text("Last time: \(last.rawValue)").font(.caption).foregroundColor(.secondary) }
             HStack {
-                Text("How did it feel?").font(.caption)
-                Spacer()
+                Text("How did it feel?").font(.caption); Spacer()
                 ForEach(FeedbackRating.allCases) { rating in
-                    Button(action: {
-                        if currentSelection == rating { currentSelection = nil } else { currentSelection = rating }
-                    }) {
-                        Text(rating.rawValue).font(.title2).scaleEffect(currentSelection == rating ? 1.2 : 1.0).opacity(currentSelection == rating ? 1.0 : 0.5)
+                    Button(action: { currentSelection = (currentSelection == rating) ? nil : rating }) {
+                        Text(rating.rawValue)
+                            .font(.title2)
+                            .scaleEffect(currentSelection == rating ? 1.2 : 1.0)
+                            .opacity(currentSelection == rating ? 1.0 : 0.5)
                     }
-                    .buttonStyle(.plain).animation(.spring(), value: currentSelection)
+                    .buttonStyle(.plain)
+                    .animation(.spring(), value: currentSelection)
                 }
             }
         }
         .padding(.vertical, 8)
-    }
-}
-
-struct ActiveSetRow: View {
-    let setNumber: Int
-    let plannedSet: WorkoutSet
-    let isCompleted: Bool
-    let onComplete: () -> Void
-    var body: some View {
-        HStack {
-            Text("\(setNumber)").bold().frame(width: 30, height: 30)
-                .background(isCompleted ? Color.green : Color.gray.opacity(0.3))
-                .foregroundColor(isCompleted ? .white : .primary).clipShape(Circle()).padding(.trailing, 10)
-            Text("\(plannedSet.reps)").frame(maxWidth: .infinity)
-            Text(String(format: "%.1f", plannedSet.weight)).frame(maxWidth: .infinity)
-            Text("\(plannedSet.restTimeInSeconds)s").frame(maxWidth: .infinity)
-            Button(action: onComplete) {
-                Image(systemName: isCompleted ? "checkmark.circle.fill" : "circle").font(.title).foregroundColor(isCompleted ? .green : .accentColor)
-            }
-            .buttonStyle(.plain).disabled(isCompleted)
-        }
-        .font(.title3).multilineTextAlignment(.center).padding(.vertical, 8)
     }
 }
