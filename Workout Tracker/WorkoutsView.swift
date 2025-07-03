@@ -18,6 +18,52 @@ struct WorkoutsView: View {
     var body: some View {
             NavigationStack(path: $path) {
                 List {
+                    // active workout resume section
+                    if let activeWorkout = store.activeWorkout {
+                        Section {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Image(systemName: "play.circle.fill")
+                                        .foregroundColor(.green)
+                                        .font(.title2)
+                                    Text("Active Workout")
+                                        .font(.headline)
+                                        .foregroundColor(.green)
+                                    Spacer()
+                                    Text(formattedTime(activeWorkout.totalElapsedTime))
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                
+                                Text(activeWorkout.workoutName)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                
+                                HStack {
+                                    Button("Resume") {
+                                        if let workout = store.workouts.first(where: { $0.id == activeWorkout.workoutID }) {
+                                            path.append(workout.id.uuidString)
+                                        }
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(.green)
+                                    
+                                    Button("End Workout") {
+                                        store.clearActiveWorkout()
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .tint(.red)
+                                }
+                            }
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(12)
+                        }
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets())
+                    }
+                    
                     // UPDATED: The stats bar is now the first "row" of the list.
                     // This gives us complete control over its background.
                     HStack(spacing: 30) {
@@ -72,6 +118,14 @@ struct WorkoutsView: View {
     
     private func deleteWorkout(at offsets: IndexSet) {
         store.workouts.remove(atOffsets: offsets)
+    }
+    
+    private func formattedTime(_ interval: TimeInterval) -> String {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.hour, .minute, .second]
+        formatter.unitsStyle = .positional
+        formatter.zeroFormattingBehavior = .pad
+        return formatter.string(from: interval) ?? "00:00"
     }
 }
 

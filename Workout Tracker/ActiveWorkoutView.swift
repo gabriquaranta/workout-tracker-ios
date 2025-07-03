@@ -52,6 +52,7 @@ struct ActiveWorkoutView: View {
                 workoutID: workout.id,
                 onFinish: { finalLogWithNotes in
                     store.addWorkoutLog(finalLogWithNotes)
+                    store.clearActiveWorkout()
                     finalLog = nil
                     dismiss()
                 }
@@ -124,7 +125,10 @@ struct ActiveWorkoutView: View {
                     FeedbackView(
                         exerciseName: exercise.name,
                         lastFeedback: store.getLastFeedback(for: exercise.name),
-                        currentSelection: $exerciseFeedback[exercise.name]
+                        currentSelection: $exerciseFeedback[exercise.name],
+                        onFeedbackChanged: {
+                            saveActiveWorkoutState()
+                        }
                     )
                 }
             }
@@ -148,12 +152,52 @@ struct ActiveWorkoutView: View {
     // MARK: - Helper Functions
     
     private func setupLiveWorkout() {
-        for exercise in workout.exercises {
-            liveSetsByExercise[exercise.id] = exercise.sets.map { planSet in
-                LiveWorkoutSet(id: planSet.id, reps: planSet.reps, weight: planSet.weight, restTimeInSeconds: planSet.restTimeInSeconds)
+        // check if there's an active workout to restore
+        if let activeWorkout = store.activeWorkout, activeWorkout.workoutID == workout.id {
+            // restore from active workout
+            liveSetsByExercise = activeWorkout.liveSetsByExercise
+            exerciseFeedback = activeWorkout.exerciseFeedback
+            workoutStartTime = activeWorkout.startTime
+            totalElapsedTime = activeWorkout.totalElapsedTime
+            isResting = activeWorkout.isResting
+            restTimeRemaining = activeWorkout.restTimeRemaining
+            restEndDate = activeWorkout.restEndDate
+            
+            // restart timers
+            startWorkoutTimer()
+            
+            // restart rest timer if needed
+            if isResting && restTimeRemaining > 0 {
+                startRestTimer()
             }
+        } else {
+            // start new workout
+            for exercise in workout.exercises {
+                liveSetsByExercise[exercise.id] = exercise.sets.map { planSet in
+                    LiveWorkoutSet(id: planSet.id, reps: planSet.reps, weight: planSet.weight, restTimeInSeconds: planSet.restTimeInSeconds)
+                }
+            }
+            workoutStartTime = Date()
+            startWorkoutTimer()
+            
+            // save initial state
+            saveActiveWorkoutState()
         }
-        startWorkoutTimer()
+    }
+    
+    private func saveActiveWorkoutState() {
+        let activeWorkout = ActiveWorkout(
+            workoutID: workout.id,
+            workoutName: workout.name,
+            startTime: workoutStartTime,
+            totalElapsedTime: totalElapsedTime,
+            liveSetsByExercise: liveSetsByExercise,
+            exerciseFeedback: exerciseFeedback,
+            isResting: isResting,
+            restEndDate: restEndDate,
+            restTimeRemaining: restTimeRemaining
+        )
+        store.activeWorkout = activeWorkout
     }
     
     private func update(liveSet: LiveWorkoutSet) {
@@ -162,6 +206,7 @@ struct ActiveWorkoutView: View {
             return
         }
         liveSetsByExercise[exerciseID]?[setIndex] = liveSet
+        saveActiveWorkoutState()
     }
     
     private func completeSet(exerciseID: UUID, setID: UUID) {
@@ -177,16 +222,28 @@ struct ActiveWorkoutView: View {
             updateActivity(isResting: true, restEndDate: endDate)
             scheduleRestNotification(in: TimeInterval(setToComplete.restTimeInSeconds))
             withAnimation { isResting = true }
-            uiRestTimer?.invalidate()
-            uiRestTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-                guard let validEndDate = self.restEndDate else { self.uiRestTimer?.invalidate(); withAnimation { self.isResting = false }; return }
-                let remaining = Int(round(validEndDate.timeIntervalSince(Date())))
-                self.restTimeRemaining = max(0, remaining)
-                if self.restTimeRemaining == 0 {
-                    self.uiRestTimer?.invalidate()
-                    withAnimation { self.isResting = false }
-                    self.updateActivity(isResting: false, restEndDate: nil)
-                }
+            startRestTimer()
+        }
+        
+        saveActiveWorkoutState()
+    }
+    
+    private func startRestTimer() {
+        uiRestTimer?.invalidate()
+        uiRestTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+            guard let validEndDate = self.restEndDate else { 
+                self.uiRestTimer?.invalidate(); 
+                withAnimation { self.isResting = false }; 
+                self.saveActiveWorkoutState()
+                return 
+            }
+            let remaining = Int(round(validEndDate.timeIntervalSince(Date())))
+            self.restTimeRemaining = max(0, remaining)
+            if self.restTimeRemaining == 0 {
+                self.uiRestTimer?.invalidate()
+                withAnimation { self.isResting = false }
+                self.updateActivity(isResting: false, restEndDate: nil)
+                self.saveActiveWorkoutState()
             }
         }
     }
@@ -216,7 +273,14 @@ struct ActiveWorkoutView: View {
     private func updateActivity(isResting: Bool, restEndDate: Date?) { Task { let s = WorkoutActivityAttributes.ContentState(timerEndDate: restEndDate ?? Date(), workoutTimerText: formattedTime(totalElapsedTime), isResting: isResting); let c = ActivityContent(state: s, staleDate: nil); await activity?.update(c) } }
     private func endWorkoutActivity() { Task { let f = WorkoutActivityAttributes.ContentState(timerEndDate: Date.now, workoutTimerText: formattedTime(totalElapsedTime), isResting: false); let c = ActivityContent(state: f, staleDate: nil); await activity?.end(c, dismissalPolicy: .immediate) } }
     private func formattedTime(_ interval: TimeInterval) -> String { let f = DateComponentsFormatter(); f.allowedUnits = [.hour, .minute, .second]; f.unitsStyle = .positional; f.zeroFormattingBehavior = .pad; return f.string(from: interval) ?? "00:00" }
-    private func startWorkoutTimer() { startWorkoutActivity(); workoutTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in totalElapsedTime = Date().timeIntervalSince(workoutStartTime); updateActivity(isResting: false, restEndDate: nil) } }
+    private func startWorkoutTimer() { 
+        startWorkoutActivity(); 
+        workoutTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in 
+            totalElapsedTime = Date().timeIntervalSince(workoutStartTime); 
+            updateActivity(isResting: false, restEndDate: nil)
+            saveActiveWorkoutState()
+        } 
+    }
     private func stopAllTimersAndNotifications() { workoutTimer?.invalidate(); uiRestTimer?.invalidate(); workoutTimer = nil; uiRestTimer = nil; UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [restNotificationIdentifier]); endWorkoutActivity() }
     private func scheduleRestNotification(in seconds: TimeInterval) { let c = UNMutableNotificationContent(); c.title = "Workout Tracker"; c.body = "Rest time Over!"; c.sound = .default; let t = UNTimeIntervalNotificationTrigger(timeInterval: seconds, repeats: false); let r = UNNotificationRequest(identifier: restNotificationIdentifier, content: c, trigger: t); UNUserNotificationCenter.current().add(r) }
 }
@@ -322,6 +386,7 @@ struct FeedbackView: View {
     let exerciseName: String
     let lastFeedback: FeedbackRating?
     @Binding var currentSelection: FeedbackRating?
+    let onFeedbackChanged: (() -> Void)?
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -329,7 +394,10 @@ struct FeedbackView: View {
             HStack {
                 Text("How did it feel?").font(.caption); Spacer()
                 ForEach(FeedbackRating.allCases) { rating in
-                    Button(action: { currentSelection = (currentSelection == rating) ? nil : rating }) {
+                    Button(action: { 
+                        currentSelection = (currentSelection == rating) ? nil : rating
+                        onFeedbackChanged?()
+                    }) {
                         Text(rating.rawValue)
                             .font(.title2)
                             .scaleEffect(currentSelection == rating ? 1.2 : 1.0)

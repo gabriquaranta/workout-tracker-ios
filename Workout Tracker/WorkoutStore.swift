@@ -15,9 +15,16 @@ class WorkoutStore: ObservableObject {
             saveHistory()
         }
     }
+    
+    @Published var activeWorkout: ActiveWorkout? {
+        didSet {
+            saveActiveWorkout()
+        }
+    }
 
     private let workoutsKey = "workoutStore_workouts"
     private let historyKey = "workoutStore_history"
+    private let activeWorkoutKey = "workoutStore_activeWorkout"
 
     init() {
         if let data = UserDefaults.standard.data(forKey: workoutsKey) {
@@ -39,6 +46,39 @@ class WorkoutStore: ObservableObject {
         } else {
             self.history = []
         }
+        
+        // load active workout if it exists
+        if let data = UserDefaults.standard.data(forKey: activeWorkoutKey) {
+            if let decodedActiveWorkout = try? JSONDecoder().decode(ActiveWorkout.self, from: data) {
+                // update elapsed time based on current time
+                var updatedWorkout = decodedActiveWorkout
+                let currentTime = Date()
+                let timeSinceStart = currentTime.timeIntervalSince(decodedActiveWorkout.startTime)
+                updatedWorkout.totalElapsedTime = timeSinceStart
+                
+                // check if rest period is still active
+                if let restEndDate = decodedActiveWorkout.restEndDate {
+                    let timeRemaining = Int(round(restEndDate.timeIntervalSince(currentTime)))
+                    if timeRemaining > 0 {
+                        updatedWorkout.restTimeRemaining = timeRemaining
+                        updatedWorkout.isResting = true
+                    } else {
+                        updatedWorkout.isResting = false
+                        updatedWorkout.restEndDate = nil
+                        updatedWorkout.restTimeRemaining = 0
+                    }
+                } else {
+                    updatedWorkout.isResting = false
+                    updatedWorkout.restTimeRemaining = 0
+                }
+                
+                self.activeWorkout = updatedWorkout
+            } else {
+                self.activeWorkout = nil
+            }
+        } else {
+            self.activeWorkout = nil
+        }
     }
 
     private func saveWorkouts() {
@@ -51,6 +91,29 @@ class WorkoutStore: ObservableObject {
         if let encoded = try? JSONEncoder().encode(history) {
             UserDefaults.standard.set(encoded, forKey: historyKey)
         }
+    }
+    
+    private func saveActiveWorkout() {
+        if let activeWorkout = activeWorkout {
+            if let encoded = try? JSONEncoder().encode(activeWorkout) {
+                UserDefaults.standard.set(encoded, forKey: activeWorkoutKey)
+            }
+        } else {
+            UserDefaults.standard.removeObject(forKey: activeWorkoutKey)
+        }
+    }
+    
+    func clearActiveWorkout() {
+        activeWorkout = nil
+    }
+
+    func getAllExerciseNames() -> [String] {
+        let allNames = workouts.flatMap { workout in
+            workout.exercises.map { $0.name }
+        }
+        let uniqueNames = Array(Set(allNames)).sorted()
+        print("All exercise names found: \(uniqueNames)")
+        return uniqueNames
     }
 
     // MARK: - Helper Functions
