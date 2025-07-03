@@ -159,6 +159,9 @@ struct WorkoutEditView: View {
 
 struct SetEditRow: View {
     @Binding var set: WorkoutSet
+    @State private var repsText: String = ""
+    @State private var weightText: String = ""
+    @State private var restText: String = ""
     
     var body: some View {
         HStack(alignment: .bottom, spacing: 16) {
@@ -166,20 +169,40 @@ struct SetEditRow: View {
                 Text("Reps")
                     .font(.callout)
                     .foregroundColor(.secondary)
-                TextField("", value: $set.reps, format: .number)
+                TextField("", text: $repsText)
                     .textFieldStyle(.roundedBorder)
                     .keyboardType(.numberPad)
                     .frame(minWidth: 50)
+                    .onAppear {
+                        repsText = "\(set.reps)"
+                    }
+                    .onChange(of: repsText) { _, newValue in
+                        if let reps = Int(newValue) {
+                            set.reps = reps
+                        } else if newValue.isEmpty {
+                            set.reps = 0
+                        }
+                    }
             }
             
             VStack(alignment: .leading, spacing: 2) {
                 Text("Wt")
                     .font(.callout)
                     .foregroundColor(.secondary)
-                TextField("", value: $set.weight, format: .number)
+                TextField("", text: $weightText)
                     .textFieldStyle(.roundedBorder)
                     .keyboardType(.decimalPad)
                     .frame(minWidth: 50)
+                    .onAppear {
+                        weightText = String(format: "%.1f", set.weight)
+                    }
+                    .onChange(of: weightText) { _, newValue in
+                        if let weight = Double(newValue) {
+                            set.weight = weight
+                        } else if newValue.isEmpty {
+                            set.weight = 0.0
+                        }
+                    }
             }
 
             HStack(alignment: .bottom, spacing: 2) {
@@ -187,10 +210,20 @@ struct SetEditRow: View {
                     Text("Rest")
                         .font(.callout)
                         .foregroundColor(.secondary)
-                    TextField("", value: $set.restTimeInSeconds, format: .number)
+                    TextField("", text: $restText)
                         .textFieldStyle(.roundedBorder)
                         .keyboardType(.numberPad)
                         .frame(minWidth: 50)
+                        .onAppear {
+                            restText = "\(set.restTimeInSeconds)"
+                        }
+                        .onChange(of: restText) { _, newValue in
+                            if let rest = Int(newValue) {
+                                set.restTimeInSeconds = rest
+                            } else if newValue.isEmpty {
+                                set.restTimeInSeconds = 0
+                            }
+                        }
                 }
                 Text("s")
                     .font(.callout)
