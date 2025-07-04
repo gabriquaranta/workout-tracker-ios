@@ -7,6 +7,9 @@ struct WorkoutEditView: View {
     @EnvironmentObject var store: WorkoutStore
     @State private var newExerciseName = ""
     @State private var filteredSuggestions: [String] = []
+    @State private var showExportSheet = false
+    @State private var showImportPicker = false
+    @State private var exportURL: URL? = nil
 
     var body: some View {
         List {
@@ -110,7 +113,41 @@ struct WorkoutEditView: View {
         .listStyle(.insetGrouped)
         .navigationTitle("Edit Workout")
         .navigationBarTitleDisplayMode(.inline)
-
+        .safeAreaInset(edge: .bottom) {
+            HStack(spacing: 16) {
+                Button {
+                    exportWorkout()
+                    showExportSheet = true
+                } label: {
+                    Label("Export", systemImage: "square.and.arrow.up")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.accentColor)
+                
+                Button {
+                    showImportPicker = true
+                } label: {
+                    Label("Import", systemImage: "square.and.arrow.down")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding()
+        }
+        .sheet(isPresented: $showExportSheet) {
+            // share sheet for exporting workout
+            if let exportURL = exportURL {
+                ShareSheet(activityItems: [exportURL])
+            } else {
+                Text("error exporting workout")
+            }
+        }
+        .sheet(isPresented: $showImportPicker) {
+            DocumentPicker { url in
+                handleImport(url: url)
+            }
+        }
     }
     
     private func updateSuggestions(for input: String) {
@@ -152,6 +189,31 @@ struct WorkoutEditView: View {
         } else {
             // If no, add a brand new set with the default values.
             exercise.wrappedValue.sets.append(WorkoutSet())
+        }
+    }
+
+    // export workout as json to temp file
+    private func exportWorkout() {
+        do {
+            let data = try JSONEncoder().encode(workout)
+            let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("Workout-\(workout.name).json")
+            try data.write(to: tempURL)
+            exportURL = tempURL
+        } catch {
+            print("error exporting workout: \(error)")
+            exportURL = nil
+        }
+    }
+
+    // handle imported workout json
+    private func handleImport(url: URL?) {
+        guard let url = url else { return }
+        do {
+            let data = try Data(contentsOf: url)
+            let imported = try JSONDecoder().decode(Workout.self, from: data)
+            workout = imported
+        } catch {
+            print("error importing workout: \(error)")
         }
     }
 }
