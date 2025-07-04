@@ -22,6 +22,12 @@ class WorkoutStore: ObservableObject {
         }
     }
 
+    @Published var bodyweight: Double {
+        didSet {
+            UserDefaults.standard.set(bodyweight, forKey: "bodyweight")
+        }
+    }
+
     private let workoutsKey = "workoutStore_workouts"
     private let historyKey = "workoutStore_history"
     private let activeWorkoutKey = "workoutStore_activeWorkout"
@@ -79,6 +85,10 @@ class WorkoutStore: ObservableObject {
         } else {
             self.activeWorkout = nil
         }
+
+        // bodyweight
+        let savedBodyweight = UserDefaults.standard.object(forKey: "bodyweight") as? Double
+        self.bodyweight = savedBodyweight ?? 70.0
     }
 
     private func saveWorkouts() {

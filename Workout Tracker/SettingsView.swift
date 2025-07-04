@@ -4,6 +4,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
+    @EnvironmentObject var store: WorkoutStore
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
@@ -22,6 +23,15 @@ struct SettingsView: View {
                         .contentShape(Rectangle())
                         .onTapGesture {
                             themeManager.currentTheme = theme
+                        }
+                    }
+                }
+                Section(header: Text("Bodyweight")) {
+                    HStack {
+                        Text("Bodyweight")
+                        Spacer()
+                        Stepper(value: $store.bodyweight, in: 30...250, step: 0.5) {
+                            Text("\(String(format: "%.1f", store.bodyweight)) kg")
                         }
                     }
                 }
