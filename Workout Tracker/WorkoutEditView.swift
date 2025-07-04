@@ -109,32 +109,33 @@ struct WorkoutEditView: View {
                     }
                 }
             }
+            // add a new section at the end for the import/export buttons
+            Section {
+                HStack(spacing: 16) {
+                    Button {
+                        exportWorkout()
+                        showExportSheet = true
+                    } label: {
+                        Label("Export", systemImage: "square.and.arrow.up")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.accentColor)
+                    
+                    Button {
+                        showImportPicker = true
+                    } label: {
+                        Label("Import", systemImage: "square.and.arrow.down")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding()
+            }
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Edit Workout")
         .navigationBarTitleDisplayMode(.inline)
-        .safeAreaInset(edge: .bottom) {
-            HStack(spacing: 16) {
-                Button {
-                    exportWorkout()
-                    showExportSheet = true
-                } label: {
-                    Label("Export", systemImage: "square.and.arrow.up")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.accentColor)
-                
-                Button {
-                    showImportPicker = true
-                } label: {
-                    Label("Import", systemImage: "square.and.arrow.down")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-            }
-            .padding()
-        }
         .sheet(isPresented: $showExportSheet) {
             // share sheet for exporting workout
             if let exportURL = exportURL {

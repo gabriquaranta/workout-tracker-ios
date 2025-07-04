@@ -256,9 +256,12 @@ struct AddWorkoutView: View {
     }
     
     private func clone(workout: Workout) {
-        var newWorkout = workout
-        newWorkout.id = UUID()
-        newWorkout.name = "\(workout.name) (Copy)"
+        let newWorkout = Workout(
+            id: UUID(),
+            name: "\(workout.name) (Copy)",
+            exercises: workout.exercises,
+            scheduledDays: workout.scheduledDays
+        )
         store.workouts.append(newWorkout)
         dismiss()
         path.append(newWorkout)

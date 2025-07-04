@@ -4,23 +4,43 @@ import Foundation
 
 // MARK: - Workout Plan Models
 struct Workout: Codable, Identifiable, Hashable {
-    var id = UUID()
+    let id: UUID
     var name: String
     var exercises: [Exercise]
     var scheduledDays: Set<Weekday> = []
+    
+    init(id: UUID = UUID(), name: String, exercises: [Exercise], scheduledDays: Set<Weekday> = []) {
+        self.id = id
+        self.name = name
+        self.exercises = exercises
+        self.scheduledDays = scheduledDays
+    }
 }
 
 struct Exercise: Codable, Identifiable, Hashable {
-    var id = UUID()
+    let id: UUID
     var name: String
     var sets: [WorkoutSet]
+    
+    init(id: UUID = UUID(), name: String, sets: [WorkoutSet]) {
+        self.id = id
+        self.name = name
+        self.sets = sets
+    }
 }
 
 struct WorkoutSet: Codable, Identifiable, Hashable {
-    var id = UUID()
+    let id: UUID
     var reps: Int = 10
     var weight: Double = 20.0
     var restTimeInSeconds: Int = 60
+    
+    init(id: UUID = UUID(), reps: Int = 10, weight: Double = 20.0, restTimeInSeconds: Int = 60) {
+        self.id = id
+        self.reps = reps
+        self.weight = weight
+        self.restTimeInSeconds = restTimeInSeconds
+    }
 }
 
 // MARK: - Live Workout Model
@@ -48,12 +68,21 @@ struct ActiveWorkout: Codable {
 
 // MARK: - Workout Log Models
 struct WorkoutLog: Codable, Identifiable {
-    var id = UUID()
+    let id: UUID
     var date: Date
     var workoutName: String
     var duration: TimeInterval
     var completedExercises: [CompletedExercise]
     var notes: String? = nil
+    
+    init(id: UUID = UUID(), date: Date, workoutName: String, duration: TimeInterval, completedExercises: [CompletedExercise], notes: String? = nil) {
+        self.id = id
+        self.date = date
+        self.workoutName = workoutName
+        self.duration = duration
+        self.completedExercises = completedExercises
+        self.notes = notes
+    }
 
     var formattedDuration: String {
         let formatter = DateComponentsFormatter()
@@ -64,10 +93,17 @@ struct WorkoutLog: Codable, Identifiable {
 }
 
 struct CompletedExercise: Codable, Identifiable {
-    var id = UUID()
+    let id: UUID
     var name: String
     var sets: [CompletedSet]
     var feedback: FeedbackRating? = nil
+    
+    init(id: UUID = UUID(), name: String, sets: [CompletedSet], feedback: FeedbackRating? = nil) {
+        self.id = id
+        self.name = name
+        self.sets = sets
+        self.feedback = feedback
+    }
 
     var totalVolume: Double {
         sets.reduce(0) { $0 + $1.volume }
@@ -85,9 +121,15 @@ enum FeedbackRating: String, Codable, CaseIterable, Identifiable {
 }
 
 struct CompletedSet: Codable, Identifiable {
-    var id = UUID()
+    let id: UUID
     var reps: Int
     var weight: Double
+    
+    init(id: UUID = UUID(), reps: Int, weight: Double) {
+        self.id = id
+        self.reps = reps
+        self.weight = weight
+    }
     
     var volume: Double {
         Double(reps) * weight
