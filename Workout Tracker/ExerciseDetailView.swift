@@ -47,6 +47,33 @@ struct ExerciseDetailView: View {
         }
         return allSets.max(by: { $0.weight < $1.weight })
     }
+    
+    // 1RM calculation functions
+    private func epleyFormula(weight: Double, reps: Int) -> Double {
+        guard reps > 0 else { return weight }
+        return weight * (1 + Double(reps) / 30.0)
+    }
+    
+    private func brzyckiFormula(weight: Double, reps: Int) -> Double {
+        guard reps > 0 && reps < 37 else { return weight }
+        return weight * (36.0 / (37.0 - Double(reps)))
+    }
+    
+    private func lombardiFormula(weight: Double, reps: Int) -> Double {
+        guard reps > 0 else { return weight }
+        return weight * pow(Double(reps), 0.10)
+    }
+    
+    // calculate average 1RM from all three formulas
+    private var estimatedOneRepMax: Double? {
+        guard let record = recordSet else { return nil }
+        
+        let epley = epleyFormula(weight: record.weight, reps: record.reps)
+        let brzycki = brzyckiFormula(weight: record.weight, reps: record.reps)
+        let lombardi = lombardiFormula(weight: record.weight, reps: record.reps)
+        
+        return (epley + brzycki + lombardi) / 3.0
+    }
 
     private var maxSetVolumeEver: Double {
         volumeData.map { $0.maxSetVolume }.max() ?? 0
@@ -169,6 +196,31 @@ struct ExerciseDetailView: View {
                 .padding()
                 .background(Color(.systemGray6))
                 .cornerRadius(10)
+                
+                // 1RM Estimation Section
+                if let record = recordSet, let estimated1RM = estimatedOneRepMax {
+                    VStack(alignment: .leading, spacing: 15) {
+                        Text("1RM Estimation").font(.title2).bold()
+                        
+                        StatRow(title: "Estimated 1RM (Average)", value: "\(String(format: "%.1f", estimated1RM)) kg")
+                        
+                        // individual formula results
+                        let epley = epleyFormula(weight: record.weight, reps: record.reps)
+                        let brzycki = brzyckiFormula(weight: record.weight, reps: record.reps)
+                        let lombardi = lombardiFormula(weight: record.weight, reps: record.reps)
+                        
+                        StatRow(title: "Epley Formula", value: "\(String(format: "%.1f", epley)) kg", color: .secondary)
+                        StatRow(title: "Brzycki Formula", value: "\(String(format: "%.1f", brzycki)) kg", color: .secondary)
+                        StatRow(title: "Lombardi Formula", value: "\(String(format: "%.1f", lombardi)) kg", color: .secondary)
+                        
+                        Text("Based on \(record.reps) reps at \(String(format: "%.1f", record.weight)) kg")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(10)
+                }
             }
             .padding()
         }
