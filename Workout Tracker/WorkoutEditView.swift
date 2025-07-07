@@ -68,6 +68,9 @@ struct WorkoutEditView: View {
                 .onDelete { indices in
                     workout.exercises.remove(atOffsets: indices)
                 }
+                .onMove { from, to in
+                    workout.exercises.move(fromOffsets: from, toOffset: to)
+                }
                 
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {

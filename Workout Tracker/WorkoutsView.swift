@@ -196,6 +196,13 @@ struct WorkoutRowView: View {
                         HStack(spacing: 8) {
                             Circle().frame(width: 6, height: 6).foregroundColor(.secondary.opacity(0.5))
                             Text(exercise.name)
+                            Spacer()
+                            if !exercise.sets.isEmpty {
+                                let firstSet = exercise.sets[0]
+                                Text("\(exercise.sets.count) × \(firstSet.reps) × \(Int(firstSet.weight))")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         }
                     }
                 }
