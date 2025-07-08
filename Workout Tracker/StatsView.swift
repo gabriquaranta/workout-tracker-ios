@@ -8,6 +8,7 @@ struct StatsView: View {
     @State private var searchText = ""
     @State private var showWorkoutLog = false
     @State private var showSettings = false
+    @State private var exerciseToDelete: String? = nil
     
     private var filteredExerciseNames: [String] {
         let allNames = store.history.flatMap { $0.completedExercises.map { $0.name } }
@@ -59,6 +60,13 @@ struct StatsView: View {
                             NavigationLink(exerciseName) {
                                 ExerciseDetailView(exerciseName: exerciseName)
                             }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    exerciseToDelete = exerciseName
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
                         }
                     }
                 }
@@ -80,6 +88,20 @@ struct StatsView: View {
                 )
                 .sheet(isPresented: $showSettings) {
                     SettingsView()
+                }
+                .alert("delete all history for this exercise?", isPresented: Binding<Bool>(
+                    get: { exerciseToDelete != nil },
+                    set: { if !$0 { exerciseToDelete = nil } }
+                )) {
+                    Button("delete", role: .destructive) {
+                        if let name = exerciseToDelete {
+                            store.deleteHistory(for: name)
+                            exerciseToDelete = nil
+                        }
+                    }
+                    Button("cancel", role: .cancel) { exerciseToDelete = nil }
+                } message: {
+                    Text("this will remove all stats and history for this exercise. this cannot be undone.")
                 }
             }
         }

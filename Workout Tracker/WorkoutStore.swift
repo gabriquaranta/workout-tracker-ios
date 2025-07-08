@@ -188,6 +188,13 @@ class WorkoutStore: ObservableObject {
         }
     }
     
+    // remove all history entries containing a given exercise name
+    func deleteHistory(for exerciseName: String) {
+        history.removeAll { log in
+            log.completedExercises.contains(where: { $0.name == exerciseName })
+        }
+    }
+    
     // MARK: - Placeholder Data
     static func createPlaceholderWorkouts() -> [Workout] {
         // ... (placeholder data is unchanged) ...
