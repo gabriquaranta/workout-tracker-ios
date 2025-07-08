@@ -5,6 +5,7 @@ import SwiftUI
 struct WorkoutEditView: View {
     @Binding var workout: Workout
     @EnvironmentObject var store: WorkoutStore
+    @Environment(\.dismiss) private var dismiss
     @State private var newExerciseName = ""
     @State private var filteredSuggestions: [String] = []
     @State private var showExportSheet = false
@@ -114,26 +115,33 @@ struct WorkoutEditView: View {
             }
             // add a new section at the end for the import/export buttons
             Section {
-                HStack(spacing: 16) {
+                HStack(spacing: 8) {
                     Button {
                         exportWorkout()
                         showExportSheet = true
                     } label: {
-                        Label("Export", systemImage: "square.and.arrow.up")
-                            .frame(maxWidth: .infinity)
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.title3)
+                        Text("Export")
+                            .font(.subheadline)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.bordered)
                     .tint(.accentColor)
+                    .frame(height: 32)
                     
                     Button {
                         showImportPicker = true
                     } label: {
-                        Label("Import", systemImage: "square.and.arrow.down")
-                            .frame(maxWidth: .infinity)
+                        Image(systemName: "square.and.arrow.down")
+                            .font(.title3)
+                        Text("Import")
+                            .font(.subheadline)
                     }
                     .buttonStyle(.bordered)
+                    .frame(height: 32)
                 }
-                .padding()
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.vertical, 4)
             }
         }
         .listStyle(.insetGrouped)
@@ -150,6 +158,13 @@ struct WorkoutEditView: View {
         .sheet(isPresented: $showImportPicker) {
             DocumentPicker { url in
                 handleImport(url: url)
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Done") {
+                    dismiss()
+                }
             }
         }
     }
