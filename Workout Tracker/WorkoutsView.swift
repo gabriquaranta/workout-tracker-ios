@@ -6,6 +6,8 @@ struct WorkoutsView: View {
     @EnvironmentObject var store: WorkoutStore
     @State private var isAddingWorkout = false
     @State private var path = NavigationPath()
+    @State private var showingDeleteAlert = false
+    @State private var workoutOffsetsToDelete: IndexSet?
     
     private var formattedTotalTime: String {
         let totalSeconds = store.history.reduce(0) { $0 + $1.duration }
@@ -86,6 +88,7 @@ struct WorkoutsView: View {
                             .listRowBackground(Color.clear)
                     }
                     .onDelete(perform: deleteWorkout)
+                    .onMove(perform: moveWorkout)
                 }
                 .listStyle(.plain)
                 .navigationTitle("My Workouts")
@@ -113,11 +116,33 @@ struct WorkoutsView: View {
                         ActiveWorkoutView(workout: workout)
                     }
                 }
+                .alert("delete workout?", isPresented: $showingDeleteAlert) {
+                    Button("delete", role: .destructive) {
+                        confirmDeleteWorkout()
+                    }
+                    Button("cancel", role: .cancel) { 
+                        workoutOffsetsToDelete = nil
+                    }
+                } message: {
+                    Text("this will permanently delete the selected workout and cannot be undone.")
+                }
             }
         }
     
     private func deleteWorkout(at offsets: IndexSet) {
-        store.workouts.remove(atOffsets: offsets)
+        workoutOffsetsToDelete = offsets
+        showingDeleteAlert = true
+    }
+    
+    private func confirmDeleteWorkout() {
+        if let offsets = workoutOffsetsToDelete {
+            store.workouts.remove(atOffsets: offsets)
+        }
+        workoutOffsetsToDelete = nil
+    }
+    
+    private func moveWorkout(from source: IndexSet, to destination: Int) {
+        store.workouts.move(fromOffsets: source, toOffset: destination)
     }
     
     private func formattedTime(_ interval: TimeInterval) -> String {
