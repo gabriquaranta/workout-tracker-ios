@@ -292,15 +292,45 @@ struct SetEditingSheetView: View {
     @State private var setCopy: LiveWorkoutSet
     let onDone: (LiveWorkoutSet) -> Void
     @Environment(\.dismiss) var dismiss
+    @State private var repsText: String = ""
+    @State private var weightText: String = ""
+    
     init(setCopy: LiveWorkoutSet, onDone: @escaping (LiveWorkoutSet) -> Void) {
         self._setCopy = State(initialValue: setCopy)
         self.onDone = onDone
+        self._repsText = State(initialValue: "\(setCopy.reps)")
+        self._weightText = State(initialValue: String(format: "%.1f", setCopy.weight))
     }
+    
     var body: some View {
         NavigationStack {
             Form {
-                Section("Edit Reps") { Stepper("\(setCopy.reps) reps", value: $setCopy.reps, in: 0...100) }
-                Section("Edit Weight") { Stepper("\(String(format: "%.1f", setCopy.weight)) kg", value: $setCopy.weight, in: 0...500, step: 0.5) }
+                Section("Edit Reps") {
+                    TextField("Reps", text: $repsText)
+                        .keyboardType(.numberPad)
+                        .onChange(of: repsText) { oldValue, newValue in
+                            if let reps = Int(newValue), reps >= 0, reps <= 100 {
+                                setCopy.reps = reps
+                            } else if newValue.isEmpty {
+                                setCopy.reps = 0
+                            } else {
+                                repsText = oldValue
+                            }
+                        }
+                }
+                Section("Edit Weight") {
+                    TextField("Weight (kg)", text: $weightText)
+                        .keyboardType(.decimalPad)
+                        .onChange(of: weightText) { oldValue, newValue in
+                            if let weight = Double(newValue), weight >= 0, weight <= 500 {
+                                setCopy.weight = weight
+                            } else if newValue.isEmpty {
+                                setCopy.weight = 0
+                            } else {
+                                weightText = oldValue
+                            }
+                        }
+                }
             }
             .navigationTitle("Edit Set").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { setCopy.wasModified = true; onDone(setCopy) } } }
