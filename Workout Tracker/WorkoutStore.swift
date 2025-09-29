@@ -195,6 +195,156 @@ class WorkoutStore: ObservableObject {
         }
     }
     
+    // MARK: - Progressive Overload Functions
+    
+    /// Returns a suggested weight increase for an exercise based on recent performance
+    func getProgressiveOverloadSuggestion(for exerciseName: String) -> (suggestedWeight: Double?, percentageIncrease: Double?)? {
+        let exerciseHistory = getHistory(for: exerciseName)
+        
+        // Need at least 3 recent workouts to make a suggestion
+        guard exerciseHistory.count >= 3 else { return nil }
+        
+        // Get last 4 workouts, sorted by date (most recent first)
+        let recentWorkouts = exerciseHistory.sorted(by: { $0.date > $1.date }).prefix(4)
+        
+        // Check if user has been consistently completing sets with good feedback
+        var totalSets = 0
+        var goodFeedbackCount = 0
+        
+        for workout in recentWorkouts {
+            if let exercise = workout.completedExercises.first(where: { $0.name == exerciseName }) {
+                totalSets += exercise.sets.count
+                if let feedback = exercise.feedback {
+                    // Consider 😄, 🙂, and 😐 as good feedback
+                    if feedback == .veryEasy || feedback == .easy || feedback == .moderate {
+                        goodFeedbackCount += 1
+                    }
+                }
+            }
+        }
+        
+        // Need at least 60% good feedback to suggest progression
+        let goodFeedbackRatio = Double(goodFeedbackCount) / Double(recentWorkouts.count)
+        guard goodFeedbackRatio >= 0.6 else { return nil }
+        
+        // Get the maximum weight used in the most recent workout
+        guard let mostRecentWorkout = recentWorkouts.first,
+              let mostRecentExercise = mostRecentWorkout.completedExercises.first(where: { $0.name == exerciseName }),
+              let maxRecentWeight = mostRecentExercise.sets.map({ $0.weight }).max() else {
+            return nil
+        }
+        
+        // Check if weight has increased in the last 2 workouts
+        let lastTwoWorkouts = recentWorkouts.prefix(2)
+        var hasRecentIncrease = false
+        
+        if lastTwoWorkouts.count == 2 {
+            let workout1 = lastTwoWorkouts.first!
+            let workout2 = lastTwoWorkouts.last!
+            
+            if let exercise1 = workout1.completedExercises.first(where: { $0.name == exerciseName }),
+               let exercise2 = workout2.completedExercises.first(where: { $0.name == exerciseName }),
+               let maxWeight1 = exercise1.sets.map({ $0.weight }).max(),
+               let maxWeight2 = exercise2.sets.map({ $0.weight }).max() {
+                hasRecentIncrease = maxWeight1 > maxWeight2
+            }
+        }
+        
+        // Don't suggest increase if weight was just increased
+        if hasRecentIncrease {
+            return nil
+        }
+        
+        // Suggest 2.5-5% increase based on consistency
+        let increasePercentage: Double
+        if goodFeedbackRatio >= 0.8 {
+            increasePercentage = 0.05 // 5% for very consistent performance
+        } else {
+            increasePercentage = 0.025 // 2.5% for moderately consistent
+        }
+        
+        let suggestedWeight = maxRecentWeight * (1 + increasePercentage)
+        
+        return (suggestedWeight: suggestedWeight, percentageIncrease: increasePercentage)
+    }
+    
+    /// Determines if an exercise should have a deload week based on recent performance
+    func shouldDeload(exerciseName: String) -> Bool {
+        let exerciseHistory = getHistory(for: exerciseName)
+        
+        // Need some history to determine deload needs
+        guard exerciseHistory.count >= 4 else { return false }
+        
+        let recentWorkouts = exerciseHistory.sorted(by: { $0.date > $1.date }).prefix(6)
+        
+        // Check for overtraining indicators
+        
+        // 1. No progress in 4+ weeks
+        let fourWeeksAgo = Date().addingTimeInterval(-28 * 24 * 60 * 60)
+        let recentProgressWorkouts = recentWorkouts.filter { $0.date > fourWeeksAgo }
+        
+        if recentProgressWorkouts.count >= 4 {
+            let firstWorkout = recentProgressWorkouts.last!
+            let lastWorkout = recentProgressWorkouts.first!
+            
+            if let firstExercise = firstWorkout.completedExercises.first(where: { $0.name == exerciseName }),
+               let lastExercise = lastWorkout.completedExercises.first(where: { $0.name == exerciseName }),
+               let firstMaxWeight = firstExercise.sets.map({ $0.weight }).max(),
+               let lastMaxWeight = lastExercise.sets.map({ $0.weight }).max() {
+                
+                // If no weight increase in 4 weeks, suggest deload
+                if lastMaxWeight <= firstMaxWeight * 1.02 { // 2% tolerance
+                    return true
+                }
+            }
+        }
+        
+        // 2. High workout frequency (5+ days/week for 3+ weeks)
+        let threeWeeksAgo = Date().addingTimeInterval(-21 * 24 * 60 * 60)
+        let highFrequencyWorkouts = recentWorkouts.filter { $0.date > threeWeeksAgo }
+        
+        if highFrequencyWorkouts.count >= 15 { // ~5 workouts/week * 3 weeks
+            return true
+        }
+        
+        // 3. Consistently poor feedback in recent workouts
+        let recentFeedback = recentWorkouts.prefix(3).compactMap { workout -> FeedbackRating? in
+            workout.completedExercises.first(where: { $0.name == exerciseName })?.feedback
+        }
+        
+        if recentFeedback.count >= 2 {
+            let poorFeedbackCount = recentFeedback.filter { $0 == .hard || $0 == .veryHard }.count
+            if Double(poorFeedbackCount) / Double(recentFeedback.count) >= 0.5 {
+                return true
+            }
+        }
+        
+        return false
+    }
+    
+    /// Calculates the percentage improvement over the last N workouts for an exercise
+    func getImprovementPercentage(for exerciseName: String, overLast workoutCount: Int = 4) -> Double? {
+        let exerciseHistory = getHistory(for: exerciseName)
+        
+        guard exerciseHistory.count >= workoutCount else { return nil }
+        
+        let sortedWorkouts = exerciseHistory.sorted(by: { $0.date > $1.date })
+        let recentWorkouts = sortedWorkouts.prefix(workoutCount)
+        
+        guard let oldestWorkout = recentWorkouts.last,
+              let newestWorkout = recentWorkouts.first,
+              let oldestExercise = oldestWorkout.completedExercises.first(where: { $0.name == exerciseName }),
+              let newestExercise = newestWorkout.completedExercises.first(where: { $0.name == exerciseName }),
+              let oldestMaxWeight = oldestExercise.sets.map({ $0.weight }).max(),
+              let newestMaxWeight = newestExercise.sets.map({ $0.weight }).max(),
+              oldestMaxWeight > 0 else {
+            return nil
+        }
+        
+        let improvement = ((newestMaxWeight - oldestMaxWeight) / oldestMaxWeight) * 100
+        return improvement
+    }
+    
     // MARK: - Placeholder Data
     static func createPlaceholderWorkouts() -> [Workout] {
         // ... (placeholder data is unchanged) ...

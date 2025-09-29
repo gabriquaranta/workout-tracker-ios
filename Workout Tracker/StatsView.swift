@@ -6,7 +6,6 @@ struct StatsView: View {
     @EnvironmentObject var store: WorkoutStore
     
     @State private var searchText = ""
-    @State private var showWorkoutLog = false
     @State private var showSettings = false
     @State private var exerciseToDelete: String? = nil
     
@@ -20,7 +19,7 @@ struct StatsView: View {
             return uniqueNames.filter { $0.localizedCaseInsensitiveContains(searchText) }
         }
     }
-    
+    ////sadasd
     var body: some View {
         NavigationStack {
             if store.history.isEmpty {
@@ -34,8 +33,8 @@ struct StatsView: View {
                 List {
                     // workout log section
                     Section {
-                        Button {
-                            showWorkoutLog = true
+                        NavigationLink {
+                            WorkoutLogView()
                         } label: {
                             HStack {
                                 Image(systemName: "clock.arrow.circlepath")
@@ -82,10 +81,6 @@ struct StatsView: View {
                         }
                     }
                 }
-                .background(
-                    NavigationLink(destination: WorkoutLogView(), isActive: $showWorkoutLog) { EmptyView() }
-                        .hidden()
-                )
                 .sheet(isPresented: $showSettings) {
                     SettingsView()
                 }

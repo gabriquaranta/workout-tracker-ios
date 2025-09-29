@@ -197,6 +197,76 @@ struct ExerciseDetailView: View {
                 .background(Color(.systemGray6))
                 .cornerRadius(10)
                 
+                // Progressive Overload Section
+                VStack(alignment: .leading, spacing: 15) {
+                    Text("Progressive Overload").font(.title2).bold()
+                    
+                    // Improvement percentage
+                    if let improvement = store.getImprovementPercentage(for: exerciseName) {
+                        HStack {
+                            Text("4-Workout Improvement")
+                            Spacer()
+                            Text("\(improvement >= 0 ? "+" : "")\(String(format: "%.1f", improvement))%")
+                                .foregroundColor(improvement >= 0 ? .green : .red)
+                                .fontWeight(.semibold)
+                        }
+                    }
+                    
+                    // Deload warning
+                    if store.shouldDeload(exerciseName: exerciseName) {
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                                .font(.title3)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Consider a Deload Week")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.orange)
+                                Text("You've been training hard. Consider reducing weight by 40-60% for recovery.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 8)
+                    }
+                    
+                    // Progressive overload suggestion
+                    if let suggestion = store.getProgressiveOverloadSuggestion(for: exerciseName),
+                       let suggestedWeight = suggestion.suggestedWeight,
+                       let percentageIncrease = suggestion.percentageIncrease {
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .foregroundColor(.blue)
+                                .font(.title3)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Suggested Weight Increase")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.blue)
+                                Text("Try \(String(format: "%.1f", suggestedWeight)) kg next time (+\(String(format: "%.1f", percentageIncrease * 100))%)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 8)
+                    }
+                    
+                    // No suggestion available
+                    if store.getImprovementPercentage(for: exerciseName) == nil &&
+                       !store.shouldDeload(exerciseName: exerciseName) &&
+                       store.getProgressiveOverloadSuggestion(for: exerciseName) == nil &&
+                       !store.getHistory(for: exerciseName).isEmpty {
+                        Text("Complete more workouts to get personalized progression suggestions.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .italic()
+                    }
+                }
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(10)
+                
                 // 1RM Estimation Section
                 if let record = recordSet, let estimated1RM = estimatedOneRepMax {
                     VStack(alignment: .leading, spacing: 15) {

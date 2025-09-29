@@ -100,6 +100,56 @@ struct ActiveWorkoutView: View {
         List {
             ForEach(workout.exercises) { exercise in
                 Section(header: Text(exercise.name).font(.title2)) {
+                    // Progressive Overload Suggestion
+                    if let suggestion = store.getProgressiveOverloadSuggestion(for: exercise.name),
+                       let suggestedWeight = suggestion.suggestedWeight,
+                       let percentageIncrease = suggestion.percentageIncrease {
+                        HStack(spacing: 12) {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .foregroundColor(.blue)
+                                .font(.title3)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Try \(String(format: "%.1f", suggestedWeight)) kg today")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.blue)
+                                Text("+\(String(format: "%.1f", percentageIncrease * 100))% from last session")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                        }
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .background(Color.blue.opacity(0.1))
+                        .cornerRadius(8)
+                        .padding(.bottom, 8)
+                    }
+                    
+                    // Deload Warning
+                    if store.shouldDeload(exerciseName: exercise.name) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                                .font(.title3)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Consider lighter weights today")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.orange)
+                                Text("You've been training hard - focus on recovery")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                        }
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(8)
+                        .padding(.bottom, 8)
+                    }
+                    
                     HStack {
                         Spacer().frame(width: 40)
                         Text("Reps").frame(maxWidth: .infinity)

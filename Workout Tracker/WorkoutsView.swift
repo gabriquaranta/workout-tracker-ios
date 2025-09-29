@@ -16,6 +16,18 @@ struct WorkoutsView: View {
         formatter.unitsStyle = .abbreviated
         return formatter.string(from: totalSeconds) ?? "0m"
     }
+    
+    private var averageImprovementText: String {
+        let allExerciseNames = store.getAllExerciseNames()
+        let improvements = allExerciseNames.compactMap { store.getImprovementPercentage(for: $0) }
+        
+        guard !improvements.isEmpty else { return "--" }
+        
+        let averageImprovement = improvements.reduce(0, +) / Double(improvements.count)
+        return averageImprovement >= 0 ? 
+            "+\(String(format: "%.1f", averageImprovement))%" : 
+            "\(String(format: "%.1f", averageImprovement))%"
+    }
 
     var body: some View {
             NavigationStack(path: $path) {
@@ -68,10 +80,12 @@ struct WorkoutsView: View {
                     
                     // UPDATED: The stats bar is now the first "row" of the list.
                     // This gives us complete control over its background.
-                    HStack(spacing: 30) {
+                    HStack(spacing: 20) {
                         StatPillView(value: "\(store.history.count)", label: "Workouts")
                         Divider().frame(height: 30)
                         StatPillView(value: formattedTotalTime, label: "Total Time")
+                        Divider().frame(height: 30)
+                        StatPillView(value: averageImprovementText, label: "Avg Progress")
                     }
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 8)

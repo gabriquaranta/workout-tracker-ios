@@ -46,9 +46,10 @@ A simple, snappy, and modern workout tracking app built entirely with SwiftUI. T
 
 - **Advanced Stats & History**:
 
-  - **Main Dashboard**: See your total completed workouts and total time spent working out at a glance on the main screen.
+  - **Main Dashboard**: See your total completed workouts, total time spent working out, and average progress across all exercises at a glance on the main screen.
   - **Performance Graphs**: For each exercise, view a graph of your **max single-set volume** (`reps * weight`) over time, or switch to a graph of **max weight as a percentage of your bodyweight** over time.
   - **Personal Records**: Track key PRs, including your max weight ever lifted, reps at max, and best weight/bodyweight %.
+  - **Progressive Overload Tracking**: Get smart weight increase suggestions based on your performance, deload warnings when recovery is needed, and detailed progress analytics showing improvement percentages over time.
   - **Searchable History**: A detailed, date-sorted log of all completed workouts, including notes and feedback. The main stats screen has a search bar to quickly find any exercise.
   - **Clear History**: Option to safely delete all workout history and stats without affecting your saved workout plans.
 

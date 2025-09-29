@@ -54,6 +54,62 @@ struct WorkoutEditView: View {
                             exercise.sets.remove(atOffsets: indices)
                         }
                         
+                        // Progressive Overload Suggestions
+                        if let suggestion = store.getProgressiveOverloadSuggestion(for: exercise.name),
+                           let suggestedWeight = suggestion.suggestedWeight,
+                           let percentageIncrease = suggestion.percentageIncrease {
+                            HStack {
+                                Image(systemName: "arrow.up.circle")
+                                    .foregroundColor(.blue)
+                                    .font(.subheadline)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Suggested: \(String(format: "%.1f", suggestedWeight)) kg")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.blue)
+                                    Text("+\(String(format: "%.1f", percentageIncrease * 100))% increase")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                Button("Apply") {
+                                    // Apply the suggested weight to the first set
+                                    if let firstSetIndex = exercise.sets.indices.first {
+                                        exercise.sets[firstSetIndex].weight = suggestedWeight
+                                    }
+                                }
+                                .font(.caption)
+                                .buttonStyle(.bordered)
+                                .tint(.blue)
+                            }
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 12)
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                        
+                        if store.shouldDeload(exerciseName: exercise.name) {
+                            HStack {
+                                Image(systemName: "exclamationmark.triangle")
+                                    .foregroundColor(.orange)
+                                    .font(.subheadline)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Consider Deload")
+                                        .font(.subheadline)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.orange)
+                                    Text("Reduce weight by 40-60% for recovery")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                            }
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 12)
+                            .background(Color.orange.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                        
                         // UPDATED: The logic for this button has been changed.
                         Button("Add Set") {
                             addSet(to: $exercise)
