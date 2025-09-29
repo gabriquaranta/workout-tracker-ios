@@ -306,30 +306,48 @@ struct SetEditingSheetView: View {
         NavigationStack {
             Form {
                 Section("Edit Reps") {
-                    TextField("Reps", text: $repsText)
-                        .keyboardType(.numberPad)
-                        .onChange(of: repsText) { oldValue, newValue in
-                            if let reps = Int(newValue), reps >= 0, reps <= 100 {
-                                setCopy.reps = reps
-                            } else if newValue.isEmpty {
-                                setCopy.reps = 0
-                            } else {
-                                repsText = oldValue
+                    VStack(spacing: 12) {
+                        TextField("Reps", text: $repsText)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.center)
+                            .font(.title2)
+                            .onChange(of: repsText) { oldValue, newValue in
+                                if let reps = Int(newValue), reps >= 0, reps <= 100 {
+                                    setCopy.reps = reps
+                                } else if newValue.isEmpty {
+                                    setCopy.reps = 0
+                                } else {
+                                    repsText = oldValue
+                                }
                             }
-                        }
+                        Stepper("", value: $setCopy.reps, in: 0...100)
+                            .labelsHidden()
+                            .onChange(of: setCopy.reps) { oldValue, newValue in
+                                repsText = "\(newValue)"
+                            }
+                    }
                 }
                 Section("Edit Weight") {
-                    TextField("Weight (kg)", text: $weightText)
-                        .keyboardType(.decimalPad)
-                        .onChange(of: weightText) { oldValue, newValue in
-                            if let weight = Double(newValue), weight >= 0, weight <= 500 {
-                                setCopy.weight = weight
-                            } else if newValue.isEmpty {
-                                setCopy.weight = 0
-                            } else {
-                                weightText = oldValue
+                    VStack(spacing: 12) {
+                        TextField("Weight (kg)", text: $weightText)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.center)
+                            .font(.title2)
+                            .onChange(of: weightText) { oldValue, newValue in
+                                if let weight = Double(newValue), weight >= 0, weight <= 500 {
+                                    setCopy.weight = weight
+                                } else if newValue.isEmpty {
+                                    setCopy.weight = 0
+                                } else {
+                                    weightText = oldValue
+                                }
                             }
-                        }
+                        Stepper("", value: $setCopy.weight, in: 0...500, step: 0.5)
+                            .labelsHidden()
+                            .onChange(of: setCopy.weight) { oldValue, newValue in
+                                weightText = String(format: "%.1f", newValue)
+                            }
+                    }
                 }
             }
             .navigationTitle("Edit Set").navigationBarTitleDisplayMode(.inline)
