@@ -35,6 +35,23 @@ struct SettingsView: View {
                         }
                     }
                 }
+                
+                Section(header: Text("Equipment")) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Smallest weight increment")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        HStack {
+                            Stepper(value: $store.smallestWeightIncrement, in: 0.25...5.0, step: 0.25) {
+                                Text("\(String(format: "%.2f", store.smallestWeightIncrement)) kg")
+                            }
+                            Spacer()
+                            Text("Used to round recommendations")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)

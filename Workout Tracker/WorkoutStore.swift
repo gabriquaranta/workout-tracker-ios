@@ -28,6 +28,12 @@ class WorkoutStore: ObservableObject {
         }
     }
 
+    @Published var smallestWeightIncrement: Double {
+        didSet {
+            UserDefaults.standard.set(smallestWeightIncrement, forKey: "smallestWeightIncrement")
+        }
+    }
+
     private let workoutsKey = "workoutStore_workouts"
     private let historyKey = "workoutStore_history"
     private let activeWorkoutKey = "workoutStore_activeWorkout"
@@ -89,6 +95,10 @@ class WorkoutStore: ObservableObject {
         // bodyweight
         let savedBodyweight = UserDefaults.standard.object(forKey: "bodyweight") as? Double
         self.bodyweight = savedBodyweight ?? 70.0
+        
+    // smallest weight increment (kg) used for rounding suggestions
+    let savedIncrement = UserDefaults.standard.object(forKey: "smallestWeightIncrement") as? Double
+    self.smallestWeightIncrement = savedIncrement ?? 0.5
     }
 
     private func saveWorkouts() {
@@ -263,9 +273,13 @@ class WorkoutStore: ObservableObject {
             increasePercentage = 0.025 // 2.5% for moderately consistent
         }
         
-        let suggestedWeight = maxRecentWeight * (1 + increasePercentage)
-        
-        return (suggestedWeight: suggestedWeight, percentageIncrease: increasePercentage)
+    let rawSuggestedWeight = maxRecentWeight * (1 + increasePercentage)
+
+    // Round up to the nearest multiple of smallestWeightIncrement
+    let increment = max(0.0001, smallestWeightIncrement) // guard against zero
+    let roundedSuggestedWeight = (rawSuggestedWeight / increment).rounded(.up) * increment
+
+    return (suggestedWeight: roundedSuggestedWeight, percentageIncrease: increasePercentage)
     }
     
     /// Determines if an exercise should have a deload week based on recent performance
