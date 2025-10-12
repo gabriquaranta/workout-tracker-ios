@@ -52,6 +52,15 @@ struct SettingsView: View {
                         }
                     }
                 }
+                #if DEBUG
+                Section(header: Text("Debug")) {
+                    Button(role: .destructive) {
+                        ActivityManager.endAllWorkoutsNow()
+                    } label: {
+                        Text("End All Live Activities (debug)")
+                    }
+                }
+                #endif
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)

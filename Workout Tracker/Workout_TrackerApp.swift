@@ -19,9 +19,14 @@ struct WorkoutTrackerApp: App {
                 .environmentObject(themeManager)
                 .preferredColorScheme(themeManager.currentTheme.colorScheme)
                 .onAppear {
+                    ActivityManager.endAllWorkoutsNow()
+
                     // This line will now work correctly with the 'let' constant.
                     UNUserNotificationCenter.current().delegate = notificationDelegate
-                    
+
+                    // End any lingering Live Activities from previous runs
+                    ActivityManager.endAllWorkoutsNow()
+
                     UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
                         if granted {
                             print("Notification permission granted.")

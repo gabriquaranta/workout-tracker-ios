@@ -319,9 +319,29 @@ struct ActiveWorkoutView: View {
     // MARK: - Haptics, Timers, Live Activities
     
     private func hapticFeedback(style: UIImpactFeedbackGenerator.FeedbackStyle) { let g = UIImpactFeedbackGenerator(style: style); g.impactOccurred() }
-    private func startWorkoutActivity() { let a = WorkoutActivityAttributes(workoutName: workout.name); let i = WorkoutActivityAttributes.ContentState(timerEndDate: Date.now, workoutTimerText: "00:00", isResting: false); do { activity = try Activity<WorkoutActivityAttributes>.request(attributes: a, content: .init(state: i, staleDate: nil), pushType: nil) } catch { print("Error: \(error.localizedDescription)") } }
+    private func startWorkoutActivity() {
+        guard activity == nil else { return } // <-- prevents duplicates
+        let a = WorkoutActivityAttributes(workoutName: workout.name)
+        let i = WorkoutActivityAttributes.ContentState(timerEndDate: Date.now, workoutTimerText: "00:00", isResting: false)
+        do {
+            activity = try Activity<WorkoutActivityAttributes>.request(attributes: a, content: .init(state: i, staleDate: nil), pushType: nil)
+        } catch { print("Activity request error:", error) }
+    }
     private func updateActivity(isResting: Bool, restEndDate: Date?) { Task { let s = WorkoutActivityAttributes.ContentState(timerEndDate: restEndDate ?? Date(), workoutTimerText: formattedTime(totalElapsedTime), isResting: isResting); let c = ActivityContent(state: s, staleDate: nil); await activity?.update(c) } }
-    private func endWorkoutActivity() { Task { let f = WorkoutActivityAttributes.ContentState(timerEndDate: Date.now, workoutTimerText: formattedTime(totalElapsedTime), isResting: false); let c = ActivityContent(state: f, staleDate: nil); await activity?.end(c, dismissalPolicy: .immediate) } }
+    private func endWorkoutActivity() {
+        Task {
+            guard let a = activity else { return }
+            let f = WorkoutActivityAttributes.ContentState(timerEndDate: Date(), workoutTimerText: formattedTime(totalElapsedTime), isResting: false)
+            let c = ActivityContent(state: f, staleDate: nil)
+            do {
+                try await a.end(c, dismissalPolicy: .immediate)
+            } catch {
+                print("Failed to end activity:", error)
+            }
+            // Clear local state
+            await MainActor.run { activity = nil }
+        }
+    }
     private func formattedTime(_ interval: TimeInterval) -> String { let f = DateComponentsFormatter(); f.allowedUnits = [.hour, .minute, .second]; f.unitsStyle = .positional; f.zeroFormattingBehavior = .pad; return f.string(from: interval) ?? "00:00" }
     private func startWorkoutTimer() { 
         startWorkoutActivity(); 

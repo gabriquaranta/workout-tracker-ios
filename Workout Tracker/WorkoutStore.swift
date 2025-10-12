@@ -125,6 +125,7 @@ class WorkoutStore: ObservableObject {
     
     func clearActiveWorkout() {
         activeWorkout = nil
+        ActivityManager.endAllWorkoutsNow()
     }
 
     func getAllExerciseNames() -> [String] {
@@ -361,7 +362,6 @@ class WorkoutStore: ObservableObject {
     
     // MARK: - Placeholder Data
     static func createPlaceholderWorkouts() -> [Workout] {
-        // ... (placeholder data is unchanged) ...
         return [
             Workout(name: "Full Body Strength A", exercises: [
                 Exercise(name: "Squat", sets: [
