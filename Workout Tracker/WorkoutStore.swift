@@ -38,6 +38,21 @@ class WorkoutStore: ObservableObject {
     private let historyKey = "workoutStore_history"
     private let activeWorkoutKey = "workoutStore_activeWorkout"
 
+    private enum OverloadConstants {
+        static let minWorkoutsForSuggestion = 3
+        static let minRatedWorkoutsForSuggestion = 2
+        static let goodFeedbackThreshold = 0.6
+        static let excellentFeedbackThreshold = 0.8
+        static let moderateIncrease = 0.025
+        static let aggressiveIncrease = 0.05
+        static let stagnationTolerance = 0.02
+        static let stagnationWindow: TimeInterval = 28 * 24 * 60 * 60
+        static let highFrequencyWindow: TimeInterval = 21 * 24 * 60 * 60
+        static let highFrequencyThreshold = 15
+        static let recentFeedbackSample = 3
+        static let poorFeedbackFractionThreshold = 0.5
+    }
+
     init() {
         if let data = UserDefaults.standard.data(forKey: workoutsKey) {
             if let decodedWorkouts = try? JSONDecoder().decode([Workout].self, from: data) {
@@ -95,10 +110,10 @@ class WorkoutStore: ObservableObject {
         // bodyweight
         let savedBodyweight = UserDefaults.standard.object(forKey: "bodyweight") as? Double
         self.bodyweight = savedBodyweight ?? 70.0
-        
-    // smallest weight increment (kg) used for rounding suggestions
-    let savedIncrement = UserDefaults.standard.object(forKey: "smallestWeightIncrement") as? Double
-    self.smallestWeightIncrement = savedIncrement ?? 0.5
+
+        // smallest weight increment (kg) used for rounding suggestions
+        let savedIncrement = UserDefaults.standard.object(forKey: "smallestWeightIncrement") as? Double
+        self.smallestWeightIncrement = savedIncrement ?? 0.5
     }
 
     private func saveWorkouts() {
@@ -212,31 +227,30 @@ class WorkoutStore: ObservableObject {
     func getProgressiveOverloadSuggestion(for exerciseName: String) -> (suggestedWeight: Double?, percentageIncrease: Double?)? {
         let exerciseHistory = getHistory(for: exerciseName)
         
-        // Need at least 3 recent workouts to make a suggestion
-        guard exerciseHistory.count >= 3 else { return nil }
+        // Need at least a baseline number of workouts to make a suggestion
+        guard exerciseHistory.count >= OverloadConstants.minWorkoutsForSuggestion else { return nil }
         
         // Get last 4 workouts, sorted by date (most recent first)
         let recentWorkouts = exerciseHistory.sorted(by: { $0.date > $1.date }).prefix(4)
         
         // Check if user has been consistently completing sets with good feedback
-        var totalSets = 0
-        var goodFeedbackCount = 0
+        var ratedWorkoutsCount = 0
+        var positiveFeedbackCount = 0
         
         for workout in recentWorkouts {
-            if let exercise = workout.completedExercises.first(where: { $0.name == exerciseName }) {
-                totalSets += exercise.sets.count
-                if let feedback = exercise.feedback {
-                    // Consider 😄, 🙂, and 😐 as good feedback
-                    if feedback == .veryEasy || feedback == .easy || feedback == .moderate {
-                        goodFeedbackCount += 1
-                    }
+            if let exercise = workout.completedExercises.first(where: { $0.name == exerciseName }),
+               let feedback = exercise.feedback {
+                ratedWorkoutsCount += 1
+                if feedback == .veryEasy || feedback == .easy || feedback == .moderate {
+                    positiveFeedbackCount += 1
                 }
             }
         }
+
+        guard ratedWorkoutsCount >= OverloadConstants.minRatedWorkoutsForSuggestion else { return nil }
         
-        // Need at least 60% good feedback to suggest progression
-        let goodFeedbackRatio = Double(goodFeedbackCount) / Double(recentWorkouts.count)
-        guard goodFeedbackRatio >= 0.6 else { return nil }
+        let goodFeedbackRatio = Double(positiveFeedbackCount) / Double(ratedWorkoutsCount)
+        guard goodFeedbackRatio >= OverloadConstants.goodFeedbackThreshold else { return nil }
         
         // Get the maximum weight used in the most recent workout
         guard let mostRecentWorkout = recentWorkouts.first,
@@ -244,6 +258,8 @@ class WorkoutStore: ObservableObject {
               let maxRecentWeight = mostRecentExercise.sets.map({ $0.weight }).max() else {
             return nil
         }
+
+                guard maxRecentWeight > 0 else { return nil }
         
         // Check if weight has increased in the last 2 workouts
         let lastTwoWorkouts = recentWorkouts.prefix(2)
@@ -267,20 +283,24 @@ class WorkoutStore: ObservableObject {
         }
         
         // Suggest 2.5-5% increase based on consistency
-        let increasePercentage: Double
-        if goodFeedbackRatio >= 0.8 {
-            increasePercentage = 0.05 // 5% for very consistent performance
-        } else {
-            increasePercentage = 0.025 // 2.5% for moderately consistent
-        }
+        let increasePercentage = goodFeedbackRatio >= OverloadConstants.excellentFeedbackThreshold ?
+            OverloadConstants.aggressiveIncrease :
+            OverloadConstants.moderateIncrease
         
-    let rawSuggestedWeight = maxRecentWeight * (1 + increasePercentage)
+        let rawSuggestedWeight = maxRecentWeight * (1 + increasePercentage)
 
-    // Round up to the nearest multiple of smallestWeightIncrement
-    let increment = max(0.0001, smallestWeightIncrement) // guard against zero
-    let roundedSuggestedWeight = (rawSuggestedWeight / increment).rounded(.up) * increment
+        // Round up to the nearest multiple of smallestWeightIncrement
+        let increment = max(0.0001, smallestWeightIncrement) // guard against zero
+        let roundedSuggestedWeight = (rawSuggestedWeight / increment).rounded(.up) * increment
 
-    return (suggestedWeight: roundedSuggestedWeight, percentageIncrease: increasePercentage)
+        // Skip if rounding does not actually increase the weight
+        if roundedSuggestedWeight <= maxRecentWeight + 0.0001 {
+            return nil
+        }
+
+        let roundedIncreasePercentage = (roundedSuggestedWeight - maxRecentWeight) / maxRecentWeight
+
+        return (suggestedWeight: roundedSuggestedWeight, percentageIncrease: roundedIncreasePercentage)
     }
     
     /// Determines if an exercise should have a deload week based on recent performance
@@ -289,51 +309,50 @@ class WorkoutStore: ObservableObject {
         
         // Need some history to determine deload needs
         guard exerciseHistory.count >= 4 else { return false }
-        
-        let recentWorkouts = exerciseHistory.sorted(by: { $0.date > $1.date }).prefix(6)
-        
+
         // Check for overtraining indicators
-        
+
         // 1. No progress in 4+ weeks
-        let fourWeeksAgo = Date().addingTimeInterval(-28 * 24 * 60 * 60)
-        let recentProgressWorkouts = recentWorkouts.filter { $0.date > fourWeeksAgo }
-        
-        if recentProgressWorkouts.count >= 4 {
-            let firstWorkout = recentProgressWorkouts.last!
-            let lastWorkout = recentProgressWorkouts.first!
-            
-            if let firstExercise = firstWorkout.completedExercises.first(where: { $0.name == exerciseName }),
+        let fourWeeksAgo = Date().addingTimeInterval(-OverloadConstants.stagnationWindow)
+        let progressWindow = exerciseHistory.filter { $0.date > fourWeeksAgo }
+
+        if progressWindow.count >= 4 {
+            let sortedProgress = progressWindow.sorted(by: { $0.date < $1.date })
+            if let firstWorkout = sortedProgress.first,
+               let lastWorkout = sortedProgress.last,
+               let firstExercise = firstWorkout.completedExercises.first(where: { $0.name == exerciseName }),
                let lastExercise = lastWorkout.completedExercises.first(where: { $0.name == exerciseName }),
                let firstMaxWeight = firstExercise.sets.map({ $0.weight }).max(),
                let lastMaxWeight = lastExercise.sets.map({ $0.weight }).max() {
-                
-                // If no weight increase in 4 weeks, suggest deload
-                if lastMaxWeight <= firstMaxWeight * 1.02 { // 2% tolerance
+                if lastMaxWeight <= firstMaxWeight * (1 + OverloadConstants.stagnationTolerance) {
                     return true
                 }
             }
         }
-        
+
         // 2. High workout frequency (5+ days/week for 3+ weeks)
-        let threeWeeksAgo = Date().addingTimeInterval(-21 * 24 * 60 * 60)
-        let highFrequencyWorkouts = recentWorkouts.filter { $0.date > threeWeeksAgo }
-        
-        if highFrequencyWorkouts.count >= 15 { // ~5 workouts/week * 3 weeks
+        let threeWeeksAgo = Date().addingTimeInterval(-OverloadConstants.highFrequencyWindow)
+        let highFrequencyWorkouts = exerciseHistory.filter { $0.date > threeWeeksAgo }
+
+        if highFrequencyWorkouts.count >= OverloadConstants.highFrequencyThreshold {
             return true
         }
-        
+
         // 3. Consistently poor feedback in recent workouts
-        let recentFeedback = recentWorkouts.prefix(3).compactMap { workout -> FeedbackRating? in
-            workout.completedExercises.first(where: { $0.name == exerciseName })?.feedback
-        }
-        
+        let recentFeedback = exerciseHistory
+            .sorted(by: { $0.date > $1.date })
+            .prefix(OverloadConstants.recentFeedbackSample)
+            .compactMap { workout -> FeedbackRating? in
+                workout.completedExercises.first(where: { $0.name == exerciseName })?.feedback
+            }
+
         if recentFeedback.count >= 2 {
             let poorFeedbackCount = recentFeedback.filter { $0 == .hard || $0 == .veryHard }.count
-            if Double(poorFeedbackCount) / Double(recentFeedback.count) >= 0.5 {
+            if Double(poorFeedbackCount) / Double(recentFeedback.count) >= OverloadConstants.poorFeedbackFractionThreshold {
                 return true
             }
         }
-        
+
         return false
     }
     
@@ -385,3 +404,4 @@ class WorkoutStore: ObservableObject {
         ]
     }
 }
+

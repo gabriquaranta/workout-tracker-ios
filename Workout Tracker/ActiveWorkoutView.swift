@@ -29,6 +29,9 @@ struct ActiveWorkoutView: View {
     @State private var activity: Activity<WorkoutActivityAttributes>? = nil
     private let restNotificationIdentifier = "workout_rest_notification"
 
+    // NEW: State for info popover
+    @State private var infoPopover: SuggestionPopoverInfo? = nil
+
     // MARK: - Body and Sub-Views
     
     var body: some View {
@@ -63,6 +66,11 @@ struct ActiveWorkoutView: View {
                 update(liveSet: updatedSet)
                 setBeingEdited = nil
             }
+        }
+        // NEW: Popover for overload/deload details
+        .popover(item: $infoPopover) { info in
+            SuggestionPopoverView(info: info)
+                .frame(width: 320)
         }
     }
     
@@ -99,57 +107,43 @@ struct ActiveWorkoutView: View {
     private var workoutList: some View {
         List {
             ForEach(workout.exercises) { exercise in
-                Section(header: Text(exercise.name).font(.title2)) {
-                    // Progressive Overload Suggestion
-                    if let suggestion = store.getProgressiveOverloadSuggestion(for: exercise.name),
-                       let suggestedWeight = suggestion.suggestedWeight,
-                       let percentageIncrease = suggestion.percentageIncrease {
-                        HStack(spacing: 12) {
-                            Image(systemName: "arrow.up.circle.fill")
-                                .foregroundColor(.blue)
-                                .font(.title3)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Try \(String(format: "%.1f", suggestedWeight)) kg today")
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.blue)
-                                Text("+\(String(format: "%.1f", percentageIncrease * 100))% from last session")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                Section(
+                    header: HStack {
+                        Text(exercise.name)
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                        Spacer()
+                        // Right-aligned compact suggestion/deload badges
+                        if store.shouldDeload(exerciseName: exercise.name) {
+                            // Deload has priority if both apply
+                            Button(action: {
+                                infoPopover = .deload(exerciseName: exercise.name)
+                            }) {
+                                ChipView(text: "Deload", color: .orange, systemImage: "exclamationmark.triangle.fill")
                             }
-                            Spacer()
-                        }
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 12)
-                        .background(Color.blue.opacity(0.1))
-                        .cornerRadius(8)
-                        .padding(.bottom, 8)
-                    }
-                    
-                    // Deload Warning
-                    if store.shouldDeload(exerciseName: exercise.name) {
-                        HStack(spacing: 12) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.orange)
-                                .font(.title3)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Consider lighter weights today")
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.orange)
-                                Text("You've been training hard - focus on recovery")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                            .buttonStyle(.plain)
+                        } else if let suggestion = store.getProgressiveOverloadSuggestion(for: exercise.name),
+                                  let percentageIncrease = suggestion.percentageIncrease,
+                                  let suggestedWeight = suggestion.suggestedWeight {
+                            Button(action: {
+                                infoPopover = .overload(exerciseName: exercise.name,
+                                                        suggestedWeight: suggestedWeight,
+                                                        percent: percentageIncrease)
+                            }) {
+                                ChipView(
+                                    text: "+\(String(format: "%.1f", percentageIncrease * 100))%",
+                                    color: .blue,
+                                    systemImage: "arrow.up.circle.fill"
+                                )
                             }
-                            Spacer()
+                            .buttonStyle(.plain)
                         }
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 12)
-                        .background(Color.orange.opacity(0.1))
-                        .cornerRadius(8)
-                        .padding(.bottom, 8)
                     }
-                    
+                ) {
+                    // Column headers
                     HStack {
                         Spacer().frame(width: 40)
                         Text("Reps").frame(maxWidth: .infinity)
@@ -202,6 +196,9 @@ struct ActiveWorkoutView: View {
     // MARK: - Helper Functions
     
     private func setupLiveWorkout() {
+        // ensure notification permission is requested once
+        requestNotificationAuthorizationIfNeeded()
+        
         // check if there's an active workout to restore
         if let activeWorkout = store.activeWorkout, activeWorkout.workoutID == workout.id {
             // restore from active workout
@@ -281,11 +278,11 @@ struct ActiveWorkoutView: View {
     private func startRestTimer() {
         uiRestTimer?.invalidate()
         uiRestTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
-            guard let validEndDate = self.restEndDate else { 
-                self.uiRestTimer?.invalidate(); 
-                withAnimation { self.isResting = false }; 
+            guard let validEndDate = self.restEndDate else {
+                self.uiRestTimer?.invalidate()
+                withAnimation { self.isResting = false }
                 self.saveActiveWorkoutState()
-                return 
+                return
             }
             let remaining = Int(round(validEndDate.timeIntervalSince(Date())))
             self.restTimeRemaining = max(0, remaining)
@@ -325,7 +322,9 @@ struct ActiveWorkoutView: View {
         let i = WorkoutActivityAttributes.ContentState(timerEndDate: Date.now, workoutTimerText: "00:00", isResting: false)
         do {
             activity = try Activity<WorkoutActivityAttributes>.request(attributes: a, content: .init(state: i, staleDate: nil), pushType: nil)
-        } catch { print("Activity request error:", error) }
+        } catch {
+            print("Failed to start workout activity:", error)
+        }
     }
     private func updateActivity(isResting: Bool, restEndDate: Date?) { Task { let s = WorkoutActivityAttributes.ContentState(timerEndDate: restEndDate ?? Date(), workoutTimerText: formattedTime(totalElapsedTime), isResting: isResting); let c = ActivityContent(state: s, staleDate: nil); await activity?.update(c) } }
     private func endWorkoutActivity() {
@@ -333,30 +332,124 @@ struct ActiveWorkoutView: View {
             guard let a = activity else { return }
             let f = WorkoutActivityAttributes.ContentState(timerEndDate: Date(), workoutTimerText: formattedTime(totalElapsedTime), isResting: false)
             let c = ActivityContent(state: f, staleDate: nil)
-            do {
-                try await a.end(c, dismissalPolicy: .immediate)
-            } catch {
-                print("Failed to end activity:", error)
-            }
+            await a.end(c, dismissalPolicy: .immediate)
             // Clear local state
             await MainActor.run { activity = nil }
         }
     }
     private func formattedTime(_ interval: TimeInterval) -> String { let f = DateComponentsFormatter(); f.allowedUnits = [.hour, .minute, .second]; f.unitsStyle = .positional; f.zeroFormattingBehavior = .pad; return f.string(from: interval) ?? "00:00" }
     private func startWorkoutTimer() { 
-        startWorkoutActivity(); 
+        startWorkoutActivity() 
+        workoutTimer?.invalidate()
         workoutTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in 
-            totalElapsedTime = Date().timeIntervalSince(workoutStartTime); 
+            totalElapsedTime = Date().timeIntervalSince(workoutStartTime) 
             updateActivity(isResting: false, restEndDate: nil)
             saveActiveWorkoutState()
         } 
     }
     private func stopAllTimersAndNotifications() { workoutTimer?.invalidate(); uiRestTimer?.invalidate(); workoutTimer = nil; uiRestTimer = nil; UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [restNotificationIdentifier]); endWorkoutActivity() }
     private func scheduleRestNotification(in seconds: TimeInterval) { let c = UNMutableNotificationContent(); c.title = "Workout Tracker"; c.body = "Rest time Over!"; c.sound = .default; let t = UNTimeIntervalNotificationTrigger(timeInterval: seconds, repeats: false); let r = UNNotificationRequest(identifier: restNotificationIdentifier, content: c, trigger: t); UNUserNotificationCenter.current().add(r) }
+    private func requestNotificationAuthorizationIfNeeded() { 
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            guard settings.authorizationStatus == .notDetermined else { return }
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+        }
+    }
 }
 
+// MARK: - Suggestion Popover Information & View
+
+enum SuggestionPopoverInfo: Identifiable, Equatable {
+    case deload(exerciseName: String)
+    case overload(exerciseName: String, suggestedWeight: Double, percent: Double)
+    var id: String {
+        switch self {
+        case .deload(let name): return "deload:\(name)"
+        case .overload(let name, _, _): return "overload:\(name)"
+        }
+    }
+}
+
+struct SuggestionPopoverView: View {
+    let info: SuggestionPopoverInfo
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            switch info {
+            case .deload(let exerciseName):
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                        .font(.largeTitle)
+                    VStack(alignment: .leading) {
+                        Text("Deload Needed")
+                            .font(.title3).bold()
+                            .foregroundColor(.orange)
+                        Text(exerciseName)
+                            .font(.headline)
+                    }
+                }
+                Text("You've been training hard or not progressing enough on this exercise. Consider a deload week: reduce the weight by **40-60%** to allow for recovery.")
+                    .font(.body)
+            case .overload(let exerciseName, let suggestedWeight, let percent):
+                HStack {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .foregroundColor(.blue)
+                        .font(.largeTitle)
+                    VStack(alignment: .leading) {
+                        Text("Progressive Overload")
+                            .font(.title3).bold()
+                            .foregroundColor(.blue)
+                        Text(exerciseName)
+                            .font(.headline)
+                    }
+                }
+                Text("Based on your recent performance, try increasing the weight to:")
+                    .font(.body)
+                HStack {
+                    Text("\(String(format: "%.1f", suggestedWeight)) kg")
+                        .font(.title2.bold())
+                        .foregroundColor(.blue)
+                    Spacer()
+                    Text("(+\(String(format: "%.1f", percent * 100))%)")
+                        .font(.headline)
+                        .foregroundColor(.secondary)
+                }
+                Text("Make sure you maintain good form. If it feels too hard, it's okay to stay at your previous weight.")
+                    .font(.body)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
 
 // MARK: - Subviews
+
+private struct ChipView: View {
+    let text: String
+    let color: Color
+    let systemImage: String
+    
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemImage)
+                .font(.caption.weight(.semibold))
+            Text(text)
+                .font(.caption.weight(.semibold))
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .foregroundColor(color)
+        .background(color.opacity(0.12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(color.opacity(0.25), lineWidth: 1)
+        )
+        .cornerRadius(8)
+        .fixedSize()
+    }
+}
 
 struct SetEditingSheetView: View {
     @State private var setCopy: LiveWorkoutSet
@@ -364,7 +457,9 @@ struct SetEditingSheetView: View {
     @Environment(\.dismiss) var dismiss
     @State private var repsText: String = ""
     @State private var weightText: String = ""
-    
+    @FocusState private var weightIsFocused: Bool
+    @FocusState private var repsIsFocused: Bool
+
     init(setCopy: LiveWorkoutSet, onDone: @escaping (LiveWorkoutSet) -> Void) {
         self._setCopy = State(initialValue: setCopy)
         self.onDone = onDone
@@ -381,18 +476,16 @@ struct SetEditingSheetView: View {
                             .keyboardType(.numberPad)
                             .multilineTextAlignment(.center)
                             .font(.title2)
-                            .onChange(of: repsText) { oldValue, newValue in
-                                if let reps = Int(newValue), reps >= 0, reps <= 100 {
-                                    setCopy.reps = reps
-                                } else if newValue.isEmpty {
-                                    setCopy.reps = 0
-                                } else {
-                                    repsText = oldValue
-                                }
+                            .focused($repsIsFocused)
+                            .onSubmit {
+                                applyRepsChange()
+                            }
+                            .onChange(of: repsIsFocused) { _, focused in
+                                if !focused { applyRepsChange() }
                             }
                         Stepper("", value: $setCopy.reps, in: 0...100)
                             .labelsHidden()
-                            .onChange(of: setCopy.reps) { oldValue, newValue in
+                            .onChange(of: setCopy.reps) { _, newValue in
                                 repsText = "\(newValue)"
                             }
                     }
@@ -403,18 +496,16 @@ struct SetEditingSheetView: View {
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.center)
                             .font(.title2)
-                            .onChange(of: weightText) { oldValue, newValue in
-                                if let weight = Double(newValue), weight >= 0, weight <= 500 {
-                                    setCopy.weight = weight
-                                } else if newValue.isEmpty {
-                                    setCopy.weight = 0
-                                } else {
-                                    weightText = oldValue
-                                }
+                            .focused($weightIsFocused)
+                            .onSubmit {
+                                applyWeightChange()
+                            }
+                            .onChange(of: weightIsFocused) { _, focused in
+                                if !focused { applyWeightChange() }
                             }
                         Stepper("", value: $setCopy.weight, in: 0...500, step: 0.5)
                             .labelsHidden()
-                            .onChange(of: setCopy.weight) { oldValue, newValue in
+                            .onChange(of: setCopy.weight) { _, newValue in
                                 weightText = String(format: "%.1f", newValue)
                             }
                     }
@@ -422,6 +513,26 @@ struct SetEditingSheetView: View {
             }
             .navigationTitle("Edit Set").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { setCopy.wasModified = true; onDone(setCopy) } } }
+        }
+    }
+
+    private func applyRepsChange() {
+        if let reps = Int(repsText), reps >= 0, reps <= 100 {
+            setCopy.reps = reps
+            repsText = "\(reps)"
+        } else {
+            // revert to last valid
+            repsText = "\(setCopy.reps)"
+        }
+    }
+
+    private func applyWeightChange() {
+        if let weight = Double(weightText), weight >= 0, weight <= 500 {
+            setCopy.weight = weight
+            weightText = String(format: "%.1f", weight)
+        } else {
+            // revert to last valid
+            weightText = String(format: "%.1f", setCopy.weight)
         }
     }
 }
@@ -529,3 +640,4 @@ struct FeedbackView: View {
         .padding(.vertical, 8)
     }
 }
+
