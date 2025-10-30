@@ -1,6 +1,7 @@
 // WorkoutsView.swift
 
 import SwiftUI
+import Charts
 
 struct WorkoutsView: View {
     @EnvironmentObject var store: WorkoutStore
@@ -27,6 +28,40 @@ struct WorkoutsView: View {
         return averageImprovement >= 0 ? 
             "+\(String(format: "%.1f", averageImprovement))%" : 
             "\(String(format: "%.1f", averageImprovement))%"
+    }
+
+    private struct WeeklyVolumePoint: Identifiable {
+        let id = UUID()
+        let weekStart: Date
+        let totalVolume: Double
+    }
+
+    private var weekAxisFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        formatter.dateFormat = "MM/dd"
+        return formatter
+    }
+
+    private var weeklyVolumeData: [WeeklyVolumePoint] {
+        guard !store.history.isEmpty else { return [] }
+        let calendar = Calendar.current
+        let grouped = Dictionary(grouping: store.history) { log -> Date in
+            calendar.dateInterval(of: .weekOfYear, for: log.date)?.start ?? calendar.startOfDay(for: log.date)
+        }
+        let points = grouped.map { weekStart, logs -> WeeklyVolumePoint in
+            let totalVolume = logs.reduce(0.0) { logTotal, log in
+                logTotal + log.completedExercises.reduce(0.0) { exerciseTotal, exercise in
+                    exerciseTotal + exercise.sets.reduce(0.0) { setTotal, set in
+                        setTotal + Double(set.reps) * set.weight
+                    }
+                }
+            }
+            return WeeklyVolumePoint(weekStart: weekStart, totalVolume: totalVolume)
+        }
+        let sortedPoints = points.sorted { $0.weekStart < $1.weekStart }
+        let limited = sortedPoints.suffix(8)
+        return Array(limited)
     }
 
     var body: some View {
@@ -93,6 +128,53 @@ struct WorkoutsView: View {
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
+
+                    if !weeklyVolumeData.isEmpty {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("Weekly Volume")
+                                    .font(.headline)
+                                Spacer()
+                                Text("kg")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Chart(weeklyVolumeData) { point in
+                                LineMark(
+                                    x: .value("Week", point.weekStart),
+                                    y: .value("Total Volume", point.totalVolume)
+                                )
+                                .interpolationMethod(.catmullRom)
+                                .foregroundStyle(Color.accentColor)
+
+                                PointMark(
+                                    x: .value("Week", point.weekStart),
+                                    y: .value("Total Volume", point.totalVolume)
+                                )
+                                .foregroundStyle(Color.accentColor)
+                                .symbolSize(40)
+                            }
+                            .chartXAxis {
+                                let formatter = weekAxisFormatter
+                                AxisMarks(values: weeklyVolumeData.map { $0.weekStart }) { value in
+                                    AxisGridLine()
+                                    if let date = value.as(Date.self) {
+                                        AxisValueLabel(formatter.string(from: date))
+                                    }
+                                }
+                            }
+                            .chartYAxis {
+                                AxisMarks(position: .leading)
+                            }
+                            .frame(height: 140)
+                        }
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(12)
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    }
 
                     // The workouts start from the next row.
                     ForEach($store.workouts) { $workout in

@@ -4,13 +4,13 @@ A simple, snappy, and modern workout tracking app built entirely with SwiftUI. T
 
 <p>
   <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_3379.PNG" width="180" />
-  <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_3380.PNG" width="180" />
-  <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_3381.PNG" width="180" />
-  <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_3382.PNG" width="180" />
-  <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_3383.PNG" width="180" />
-  <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_3384.PNG" width="180" />
-  <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_3385.PNG" width="180" />
-  <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_3386.PNG" width="180" />
+  <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_4958.PNG" width="180" />
+  <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_4959.PNG" width="180" />
+  <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_4961.PNG" width="180" />
+  <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_4962.PNG" width="180" />
+  <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_4964.PNG" width="180" />
+  <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_4965.PNG" width="180" />
+  <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_4966.PNG" width="180" />
 </p>
 
 ## Key Features
@@ -28,6 +28,7 @@ A simple, snappy, and modern workout tracking app built entirely with SwiftUI. T
   - A live in-app timer tracks the total session duration.
   - Check off sets as you complete them with satisfying **haptic feedback**.
   - An automatic rest timer starts after each set, with a system notification when time is up.
+  - Edit any set inline while you train with quick steppers or direct text entry for reps, weight, and rest.
 
 - **Qualitative & Quantitative Tracking**:
 
@@ -38,6 +39,7 @@ A simple, snappy, and modern workout tracking app built entirely with SwiftUI. T
 
   - **Theme Switching**: Choose between light, dark, or automatic (system) appearance modes in the settings.
   - **Bodyweight Tracking**: Set your current bodyweight in the settings. Used for relative strength stats.
+  - **Smallest Weight Increment**: Customize the load rounding the app applies so recommendations match the plates you own.
 
 - **Import & Export**:
 
@@ -50,6 +52,7 @@ A simple, snappy, and modern workout tracking app built entirely with SwiftUI. T
   - **Performance Graphs**: For each exercise, view a graph of your **max single-set volume** (`reps * weight`) over time, or switch to a graph of **max weight as a percentage of your bodyweight** over time.
   - **Personal Records**: Track key PRs, including your max weight ever lifted, reps at max, and best weight/bodyweight %.
   - **Progressive Overload Tracking**: Get smart weight increase suggestions based on your performance, deload warnings when recovery is needed, and detailed progress analytics showing improvement percentages over time.
+  - **Weekly Volume Trend**: A compact line chart on the workouts tab highlights how your total load evolves week over week.
   - **Searchable History**: A detailed, date-sorted log of all completed workouts, including notes and feedback. The main stats screen has a search bar to quickly find any exercise.
   - **Clear History**: Option to safely delete all workout history and stats without affecting your saved workout plans.
 

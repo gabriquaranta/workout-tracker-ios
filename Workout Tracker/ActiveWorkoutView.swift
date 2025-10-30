@@ -134,7 +134,7 @@ struct ActiveWorkoutView: View {
                                                         percent: percentageIncrease)
                             }) {
                                 ChipView(
-                                    text: "+\(String(format: "%.1f", percentageIncrease * 100))%",
+                                    text: "Increase",
                                     color: .blue,
                                     systemImage: "arrow.up.circle.fill"
                                 )
