@@ -4,26 +4,22 @@ import SwiftUI
 
 struct StatsView: View {
     @EnvironmentObject var store: WorkoutStore
-    
+
     @State private var searchText = ""
     @State private var showSettings = false
-    @State private var exerciseToDelete: String? = nil
-    @State private var showLog = false // Controls the sheet for Workout Log
+    @State private var exerciseToDelete: ExerciseToDelete? = nil
+    @State private var showLog = false
 
     private var filteredExerciseNames: [String] {
-        let allNames = store.history.flatMap { $0.completedExercises.map { $0.name } }
-        let uniqueNames = Array(Set(allNames)).sorted()
-        
-        if searchText.isEmpty {
-            return uniqueNames
-        } else {
-            return uniqueNames.filter { $0.localizedCaseInsensitiveContains(searchText) }
-        }
+        let allNames = store.history.flatMap { $0.completedExercises.map(\.name) }
+        let uniqueNames = Set(allNames).sorted()
+        guard !searchText.isEmpty else { return uniqueNames }
+        return uniqueNames.filter { $0.localizedCaseInsensitiveContains(searchText) }
     }
-    
+
     var body: some View {
         NavigationStack {
-            Group { // Wrap the content in a Group
+            Group {
                 if store.history.isEmpty {
                     ContentUnavailableView(
                         "No Workout History",
@@ -33,41 +29,22 @@ struct StatsView: View {
                     .navigationTitle("Stats")
                 } else {
                     List {
-                        // workout log section (Button and sheet; not NavigationLink)
                         Section {
-                            Button(action: {
+                            WorkoutLogButton {
                                 showLog = true
-                            }) {
-                                HStack {
-                                    Image(systemName: "clock.arrow.circlepath")
-                                        .foregroundColor(.accentColor)
-                                    Text("Your Workout Log")
-                                        .font(.headline)
-                                    Spacer()
-                                }
-                                .padding()
-                                .background(Color(.systemGray6))
-                                .cornerRadius(12)
                             }
-                            .buttonStyle(.plain)
+                            .cardStyle()
                         }
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets())
-                        
-                        // exercise stats section
+
                         Section(header: Text("Exercise Stats")) {
                             ForEach(filteredExerciseNames, id: \.self) { exerciseName in
-                                NavigationLink(exerciseName) {
-                                    ExerciseDetailView(exerciseName: exerciseName)
-                                }
-                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                    Button(role: .destructive) {
-                                        exerciseToDelete = exerciseName
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
-                                }
+                                ExerciseStatRow(
+                                    exerciseName: exerciseName,
+                                    onDelete: { exerciseToDelete = ExerciseToDelete(name: exerciseName) }
+                                )
                             }
                         }
                     }
@@ -80,19 +57,18 @@ struct StatsView: View {
                     .sheet(isPresented: $showSettings) {
                         SettingsView()
                     }
-                    .alert("delete all history for this exercise?", isPresented: Binding<Bool>(
-                        get: { exerciseToDelete != nil },
-                        set: { if !$0 { exerciseToDelete = nil } }
-                    )) {
-                        Button("delete", role: .destructive) {
-                            if let name = exerciseToDelete {
-                                store.deleteHistory(for: name)
+                    .alert(item: $exerciseToDelete) { item in
+                        Alert(
+                            title: Text("Delete all history for this exercise?"),
+                            message: Text("This will remove all stats and history for this exercise. This cannot be undone."),
+                            primaryButton: .destructive(Text("Delete")) {
+                                store.deleteHistory(for: item.name)
+                                exerciseToDelete = nil
+                            },
+                            secondaryButton: .cancel {
                                 exerciseToDelete = nil
                             }
-                        }
-                        Button("cancel", role: .cancel) { exerciseToDelete = nil }
-                    } message: {
-                        Text("this will remove all stats and history for this exercise. this cannot be undone.")
+                        )
                     }
                 }
             }
@@ -103,8 +79,73 @@ struct StatsView: View {
                     } label: {
                         Image(systemName: "gearshape")
                     }
+                    .accessibilityLabel("Settings")
                 }
             }
+        }
+    }
+}
+
+// MARK: - Helper Types
+
+private struct ExerciseToDelete: Identifiable {
+    let name: String
+    var id: String { name }
+}
+
+// MARK: - View Modifiers
+
+private struct CardStyle: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background(Color(.systemGray6))
+            .cornerRadius(12)
+    }
+}
+
+private extension View {
+    func cardStyle() -> some View {
+        modifier(CardStyle())
+    }
+}
+
+// MARK: - Subviews
+
+private struct WorkoutLogButton: View {
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Image(systemName: "clock.arrow.circlepath")
+                    .foregroundColor(.accentColor)
+                Text("Your Workout Log")
+                    .font(.headline)
+                Spacer()
+            }
+            .padding()
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("View your workout log")
+    }
+}
+
+private struct ExerciseStatRow: View {
+    let exerciseName: String
+    var onDelete: () -> Void
+
+    var body: some View {
+        NavigationLink {
+            ExerciseDetailView(exerciseName: exerciseName)
+        } label: {
+            Text(exerciseName)
+                .padding(.vertical, 4)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button(role: .destructive, action: onDelete) {
+                Label("Delete", systemImage: "trash")
+            }
+            .accessibilityLabel("Delete all history for \(exerciseName)")
         }
     }
 }

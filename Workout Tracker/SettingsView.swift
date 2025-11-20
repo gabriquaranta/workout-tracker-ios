@@ -1,12 +1,10 @@
-// SettingsView.swift
-
 import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @EnvironmentObject var store: WorkoutStore
     @Environment(\.dismiss) private var dismiss
-    
+
     var body: some View {
         NavigationStack {
             List {
@@ -24,16 +22,19 @@ struct SettingsView: View {
                         .onTapGesture {
                             themeManager.currentTheme = theme
                         }
+                        .accessibilityLabel("\(theme.displayName) theme")
+                        .accessibilityAddTraits(themeManager.currentTheme == theme ? .isSelected : .isButton)
                     }
                 }
                 Section(header: Text("Bodyweight")) {
-                    HStack {
-                        Text("Bodyweight")
-                        Spacer()
-                        Stepper(value: $store.bodyweight, in: 30...250, step: 0.5) {
+                    Stepper(value: $store.bodyweight, in: 30...250, step: 0.5) {
+                        HStack {
+                            Text("Bodyweight")
+                            Spacer()
                             Text("\(String(format: "%.1f", store.bodyweight)) kg")
                         }
                     }
+                    .accessibilityLabel("Bodyweight stepper")
                 }
                 
                 Section(header: Text("Equipment")) {
@@ -41,15 +42,16 @@ struct SettingsView: View {
                         Text("Smallest weight increment")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
-                        HStack {
-                            Stepper(value: $store.smallestWeightIncrement, in: 0.25...5.0, step: 0.25) {
+                        Stepper(value: $store.smallestWeightIncrement, in: 0.25...5.0, step: 0.25) {
+                            HStack {
                                 Text("\(String(format: "%.2f", store.smallestWeightIncrement)) kg")
+                                Spacer()
+                                Text("Used to round recommendations")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
-                            Spacer()
-                            Text("Used to round recommendations")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
                         }
+                        .accessibilityLabel("Smallest weight increment")
                     }
                 }
                 #if DEBUG
@@ -59,6 +61,7 @@ struct SettingsView: View {
                     } label: {
                         Text("End All Live Activities (debug)")
                     }
+                    .accessibilityLabel("End all live activities")
                 }
                 #endif
             }
@@ -69,8 +72,9 @@ struct SettingsView: View {
                     Button("Done") {
                         dismiss()
                     }
+                    .accessibilityLabel("Dismiss settings")
                 }
             }
         }
     }
-} 
+}
