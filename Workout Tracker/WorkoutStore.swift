@@ -45,10 +45,10 @@ class WorkoutStore: ObservableObject {
         static let excellentFeedbackThreshold = 0.8
         static let moderateIncrease = 0.025
         static let aggressiveIncrease = 0.05
-        static let stagnationTolerance = 0.02
+        static let stagnationTolerance = 0.05
         static let stagnationWindow: TimeInterval = 28 * 24 * 60 * 60
         static let highFrequencyWindow: TimeInterval = 21 * 24 * 60 * 60
-        static let highFrequencyThreshold = 15
+        static let highFrequencyThreshold = 21
         static let recentFeedbackSample = 3
         static let poorFeedbackFractionThreshold = 0.5
     }
@@ -310,13 +310,25 @@ class WorkoutStore: ObservableObject {
         // Need some history to determine deload needs
         guard exerciseHistory.count >= 4 else { return false }
 
-        // Check for overtraining indicators
+        // Check for poor feedback first (required for deload suggestion)
+        let recentFeedback = exerciseHistory
+            .sorted(by: { $0.date > $1.date })
+            .prefix(OverloadConstants.recentFeedbackSample)
+            .compactMap { workout -> FeedbackRating? in
+                workout.completedExercises.first(where: { $0.name == exerciseName })?.feedback
+            }
 
-        // 1. No progress in 4+ weeks
+        let hasPoorFeedback: Bool = {
+            guard recentFeedback.count >= 2 else { return false }
+            let poorFeedbackCount = recentFeedback.filter { $0 == .hard || $0 == .veryHard }.count
+            return Double(poorFeedbackCount) / Double(recentFeedback.count) >= OverloadConstants.poorFeedbackFractionThreshold
+        }()
+
+        // 1. No progress in 4+ weeks AND poor feedback
         let fourWeeksAgo = Date().addingTimeInterval(-OverloadConstants.stagnationWindow)
         let progressWindow = exerciseHistory.filter { $0.date > fourWeeksAgo }
 
-        if progressWindow.count >= 4 {
+        if progressWindow.count >= 4 && hasPoorFeedback {
             let sortedProgress = progressWindow.sorted(by: { $0.date < $1.date })
             if let firstWorkout = sortedProgress.first,
                let lastWorkout = sortedProgress.last,
@@ -330,27 +342,12 @@ class WorkoutStore: ObservableObject {
             }
         }
 
-        // 2. High workout frequency (5+ days/week for 3+ weeks)
+        // 2. High workout frequency AND poor feedback
         let threeWeeksAgo = Date().addingTimeInterval(-OverloadConstants.highFrequencyWindow)
         let highFrequencyWorkouts = exerciseHistory.filter { $0.date > threeWeeksAgo }
 
-        if highFrequencyWorkouts.count >= OverloadConstants.highFrequencyThreshold {
+        if highFrequencyWorkouts.count >= OverloadConstants.highFrequencyThreshold && hasPoorFeedback {
             return true
-        }
-
-        // 3. Consistently poor feedback in recent workouts
-        let recentFeedback = exerciseHistory
-            .sorted(by: { $0.date > $1.date })
-            .prefix(OverloadConstants.recentFeedbackSample)
-            .compactMap { workout -> FeedbackRating? in
-                workout.completedExercises.first(where: { $0.name == exerciseName })?.feedback
-            }
-
-        if recentFeedback.count >= 2 {
-            let poorFeedbackCount = recentFeedback.filter { $0 == .hard || $0 == .veryHard }.count
-            if Double(poorFeedbackCount) / Double(recentFeedback.count) >= OverloadConstants.poorFeedbackFractionThreshold {
-                return true
-            }
         }
 
         return false
