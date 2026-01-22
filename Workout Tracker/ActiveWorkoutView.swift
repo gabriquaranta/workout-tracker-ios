@@ -32,6 +32,9 @@ struct ActiveWorkoutView: View {
     // NEW: State for info popover
     @State private var infoPopover: SuggestionPopoverInfo? = nil
 
+    // NEW: show add exercise sheet
+    @State private var showingAddExercise: Bool = false
+
     // MARK: - Body and Sub-Views
     
     var body: some View {
@@ -45,6 +48,14 @@ struct ActiveWorkoutView: View {
         }
         .navigationTitle(workout.name)
         .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: { showingAddExercise = true }) {
+                    Image(systemName: "plus")
+                    Text("Add")
+                }
+            }
+        }
         .onAppear(perform: setupLiveWorkout)
         .onDisappear(perform: stopAllTimersAndNotifications)
         .sheet(item: $finalLog) { log in
@@ -71,6 +82,17 @@ struct ActiveWorkoutView: View {
         .popover(item: $infoPopover) { info in
             SuggestionPopoverView(info: info)
                 .frame(width: 320)
+        }
+        .sheet(isPresented: $showingAddExercise) {
+            AddExerciseSheetView(workoutID: workout.id) { added in
+                // append to live sets for the active session
+                let liveSets = added.sets.map { planSet in
+                    LiveWorkoutSet(id: planSet.id, reps: planSet.reps, weight: planSet.weight, restTimeInSeconds: planSet.restTimeInSeconds)
+                }
+                liveSetsByExercise[added.id] = liveSets
+                saveActiveWorkoutState()
+                showingAddExercise = false
+            }
         }
     }
     
@@ -106,7 +128,7 @@ struct ActiveWorkoutView: View {
     
     private var workoutList: some View {
         List {
-            ForEach(workout.exercises) { exercise in
+            ForEach(planExercises) { exercise in
                 Section(
                     header: HStack {
                         Text(exercise.name)
@@ -163,6 +185,18 @@ struct ActiveWorkoutView: View {
                                 completeSet(exerciseID: exercise.id, setID: liveSet.id)
                             }
                         }
+                        HStack(spacing: 12) {
+                            Spacer()
+                            Button(action: { addSetToExercise(exerciseID: exercise.id) }) {
+                                Label("Add Set", systemImage: "plus.circle")
+                            }
+                            .buttonStyle(.bordered)
+                            Button(action: { removeLastSetFromExercise(exerciseID: exercise.id) }) {
+                                Label("Remove Set", systemImage: "minus.circle")
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(liveSetsByExercise[exercise.id]?.isEmpty ?? true)
+                        }
                     }
                 }
                 Section {
@@ -178,6 +212,14 @@ struct ActiveWorkoutView: View {
             }
         }
         .listStyle(.grouped)
+    }
+
+    // Use the latest workout plan from the store if available so UI reflects additions
+    private var planExercises: [Exercise] {
+        if let updated = store.workouts.first(where: { $0.id == workout.id }) {
+            return updated.exercises
+        }
+        return workout.exercises
     }
     
     private var finishButton: some View {
@@ -253,6 +295,25 @@ struct ActiveWorkoutView: View {
             return
         }
         liveSetsByExercise[exerciseID]?[setIndex] = liveSet
+        saveActiveWorkoutState()
+    }
+
+    private func addSetToExercise(exerciseID: UUID) {
+        // prefer using last live set values as template, otherwise sensible defaults
+        let template = liveSetsByExercise[exerciseID]?.last
+        let newSet = LiveWorkoutSet(id: UUID(), reps: template?.reps ?? 10, weight: template?.weight ?? 20.0, restTimeInSeconds: template?.restTimeInSeconds ?? 60)
+        if liveSetsByExercise[exerciseID] != nil {
+            liveSetsByExercise[exerciseID]?.append(newSet)
+        } else {
+            liveSetsByExercise[exerciseID] = [newSet]
+        }
+        saveActiveWorkoutState()
+    }
+
+    private func removeLastSetFromExercise(exerciseID: UUID) {
+        guard var sets = liveSetsByExercise[exerciseID], !sets.isEmpty else { return }
+        sets.removeLast()
+        liveSetsByExercise[exerciseID] = sets
         saveActiveWorkoutState()
     }
     

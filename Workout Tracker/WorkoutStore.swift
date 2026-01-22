@@ -194,6 +194,15 @@ class WorkoutStore: ObservableObject {
             }
         }
     }
+
+    // Adds a new exercise to a workout plan and returns the created Exercise
+    @discardableResult
+    func addExercise(named name: String, sets: [WorkoutSet] = [WorkoutSet()], to workoutID: UUID) -> Exercise? {
+        guard let index = workouts.firstIndex(where: { $0.id == workoutID }) else { return nil }
+        let exercise = Exercise(name: name, sets: sets)
+        workouts[index].exercises.append(exercise)
+        return exercise
+    }
     
     func clearHistory() {
         history.removeAll()
