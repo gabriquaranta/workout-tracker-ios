@@ -1,4 +1,7 @@
-// WorkoutWidgets.swift
+//
+//  WorkoutWidgets.swift
+//  Workout Tracker
+//
 
 import ActivityKit
 import WidgetKit

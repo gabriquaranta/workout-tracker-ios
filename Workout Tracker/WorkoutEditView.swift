@@ -1,4 +1,7 @@
-// WorkoutEditView.swift
+//
+//  WorkoutEditView.swift
+//  Workout Tracker
+//
 
 import SwiftUI
 
@@ -118,7 +121,7 @@ struct WorkoutEditView: View {
                         .padding(.top, 8)
 
                     } label: {
-                        ExerciseNameField(exerciseName: $exercise.name, store: store)
+                        ExerciseNameField(exerciseName: $exercise.name)
                             .font(.headline)
                     }
                 }
@@ -144,27 +147,12 @@ struct WorkoutEditView: View {
                     
                     // autocomplete suggestions
                     if !filteredSuggestions.isEmpty && !newExerciseName.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            ForEach(filteredSuggestions, id: \.self) { suggestion in
-                                Button(action: {
-                                    newExerciseName = suggestion
-                                }) {
-                                    HStack {
-                                        Text(suggestion)
-                                            .foregroundColor(.primary)
-                                        Spacer()
-                                        Image(systemName: "arrow.up.left")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                                .buttonStyle(.plain)
-                                .padding(.vertical, 4)
-                                .padding(.horizontal, 8)
-                                .background(Color(.systemGray6))
-                                .cornerRadius(6)
+                        ExerciseSuggestionsView(
+                            suggestions: filteredSuggestions,
+                            onSelect: { suggestion in
+                                newExerciseName = suggestion
                             }
-                        }
+                        )
                         .padding(.top, 4)
                     }
                 }
@@ -226,23 +214,14 @@ struct WorkoutEditView: View {
     }
     
     private func updateSuggestions(for input: String) {
-        if input.isEmpty {
-            filteredSuggestions = []
-            return
-        }
-        
         let allExerciseNames = store.getAllExerciseNames()
-        filteredSuggestions = allExerciseNames.filter { name in
-            name.lowercased().contains(input.lowercased()) && 
-            name.lowercased() != input.lowercased()
-        }
-        
-        // debug print to see what's happening
-        print("Input: '\(input)', Found suggestions: \(filteredSuggestions)")
+        filteredSuggestions = ExerciseSuggestionService.filterSuggestions(
+            for: input,
+            from: allExerciseNames
+        )
     }
     
     private func addExercise() {
-        print("Adding exercise: \(newExerciseName)")
         let newExercise = Exercise(name: newExerciseName, sets: [WorkoutSet()])
         workout.exercises.append(newExercise)
         newExerciseName = ""
@@ -275,7 +254,6 @@ struct WorkoutEditView: View {
             try data.write(to: tempURL)
             exportURL = tempURL
         } catch {
-            print("error exporting workout: \(error)")
             exportURL = nil
         }
     }
@@ -288,7 +266,7 @@ struct WorkoutEditView: View {
             let imported = try JSONDecoder().decode(Workout.self, from: data)
             workout = imported
         } catch {
-            print("error importing workout: \(error)")
+            // Import error - handled silently
         }
     }
 }
@@ -373,7 +351,7 @@ struct SetEditRow: View {
 
 struct ExerciseNameField: View {
     @Binding var exerciseName: String
-    @ObservedObject var store: WorkoutStore
+    @EnvironmentObject var store: WorkoutStore
     @State private var filteredSuggestions: [String] = []
 
     var body: some View {
@@ -385,42 +363,22 @@ struct ExerciseNameField: View {
             
             // autocomplete suggestions for existing exercises
             if !filteredSuggestions.isEmpty && !exerciseName.isEmpty {
-                VStack(alignment: .leading, spacing: 2) {
-                    ForEach(filteredSuggestions, id: \.self) { suggestion in
-                        Button(action: {
-                            exerciseName = suggestion
-                        }) {
-                            HStack {
-                                Text(suggestion)
-                                    .foregroundColor(.primary)
-                                Spacer()
-                                Image(systemName: "arrow.up.left")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.vertical, 2)
-                        .padding(.horizontal, 6)
-                        .background(Color(.systemGray6))
-                        .cornerRadius(4)
+                ExerciseSuggestionsView.compact(
+                    suggestions: filteredSuggestions,
+                    onSelect: { suggestion in
+                        exerciseName = suggestion
                     }
-                }
+                )
             }
         }
     }
     
     private func updateSuggestions(for input: String) {
-        if input.isEmpty {
-            filteredSuggestions = []
-            return
-        }
-        
         let allExerciseNames = store.getAllExerciseNames()
-        filteredSuggestions = allExerciseNames.filter { name in
-            name.lowercased().contains(input.lowercased()) && 
-            name.lowercased() != input.lowercased()
-        }
+        filteredSuggestions = ExerciseSuggestionService.filterSuggestions(
+            for: input,
+            from: allExerciseNames
+        )
     }
 }
 

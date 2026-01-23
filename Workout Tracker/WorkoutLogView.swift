@@ -1,3 +1,8 @@
+//
+//  WorkoutLogView.swift
+//  Workout Tracker
+//
+
 import SwiftUI
 
 struct WorkoutLogView: View {
@@ -124,23 +129,5 @@ private struct WorkoutLogCard: View {
             }
         }
         .padding(.vertical, 8)
-    }
-}
-
-// MARK: - CardStyle Modifier
-
-private struct CardStyle: ViewModifier {
-    func body(content: Content) -> some View {
-        content
-            .padding(12)
-            .background(Color(.systemGray5))
-            .cornerRadius(12)
-            .shadow(color: .black.opacity(0.04), radius: 3, x: 0, y: 2)
-    }
-}
-
-private extension View {
-    func cardStyle() -> some View {
-        self.modifier(CardStyle())
     }
 }

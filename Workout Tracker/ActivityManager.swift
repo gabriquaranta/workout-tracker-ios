@@ -1,3 +1,8 @@
+//
+//  ActivityManager.swift
+//  Workout Tracker
+//
+
 import Foundation
 import ActivityKit
 

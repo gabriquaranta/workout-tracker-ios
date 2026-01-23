@@ -1,3 +1,8 @@
+//
+//  AddExerciseSheetView.swift
+//  Workout Tracker
+//
+
 import SwiftUI
 
 struct AddExerciseSheetView: View {
@@ -46,7 +51,8 @@ struct AddExerciseSheetView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
-                        let nameToUse = (selectedName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false) ? selectedName! : newExerciseName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let trimmedSelectedName = selectedName?.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let nameToUse = (trimmedSelectedName?.isEmpty == false) ? (trimmedSelectedName ?? "") : newExerciseName.trimmingCharacters(in: .whitespacesAndNewlines)
                         guard !nameToUse.isEmpty else { return }
 
                         // Try to find a template for the selected name in the store
@@ -91,9 +97,9 @@ struct AddExerciseSheetView: View {
     }
 }
 
-struct AddExerciseSheetView_Previews: PreviewProvider {
-    static var previews: some View {
-        AddExerciseSheetView(workoutID: UUID()) { _ in }
-            .environmentObject(WorkoutStore())
-    }
+#if DEBUG
+#Preview {
+    AddExerciseSheetView(workoutID: UUID()) { _ in }
+        .environmentObject(WorkoutStore.preview)
 }
+#endif

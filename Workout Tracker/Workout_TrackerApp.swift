@@ -1,4 +1,7 @@
-// WorkoutTrackerApp.swift
+//
+//  Workout_TrackerApp.swift
+//  Workout Tracker
+//
 
 import SwiftUI
 import UserNotifications
@@ -27,12 +30,8 @@ struct WorkoutTrackerApp: App {
                     // End any lingering Live Activities from previous runs
                     ActivityManager.endAllWorkoutsNow()
 
-                    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
-                        if granted {
-                            print("Notification permission granted.")
-                        } else if let error = error {
-                            print(error.localizedDescription)
-                        }
+                    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { _, _ in
+                        // Notification permission handled silently
                     }
                 }
         }
