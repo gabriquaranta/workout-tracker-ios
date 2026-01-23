@@ -1,4 +1,7 @@
-// StatsView.swift
+//
+//  StatsView.swift
+//  Workout Tracker
+//
 
 import SwiftUI
 
@@ -91,22 +94,6 @@ struct StatsView: View {
 private struct ExerciseToDelete: Identifiable {
     let name: String
     var id: String { name }
-}
-
-// MARK: - View Modifiers
-
-private struct CardStyle: ViewModifier {
-    func body(content: Content) -> some View {
-        content
-            .background(Color(.systemGray6))
-            .cornerRadius(12)
-    }
-}
-
-private extension View {
-    func cardStyle() -> some View {
-        modifier(CardStyle())
-    }
 }
 
 // MARK: - Subviews

@@ -1,4 +1,7 @@
-// ThemeManager.swift
+//
+//  ThemeManager.swift
+//  Workout Tracker
+//
 
 import SwiftUI
 
@@ -31,14 +34,22 @@ enum AppTheme: String, CaseIterable {
 }
 
 class ThemeManager: ObservableObject {
+    
+    // MARK: - Properties
+    
+    private let persistence: PersistenceProtocol
+    
     @Published var currentTheme: AppTheme {
         didSet {
-            UserDefaults.standard.set(currentTheme.rawValue, forKey: "selectedTheme")
+            persistence.saveTheme(currentTheme.rawValue)
         }
     }
     
-    init() {
-        let savedTheme = UserDefaults.standard.string(forKey: "selectedTheme") ?? AppTheme.automatic.rawValue
+    // MARK: - Initialization
+    
+    init(persistence: PersistenceProtocol = UserDefaultsPersistenceManager()) {
+        self.persistence = persistence
+        let savedTheme = persistence.loadTheme() ?? AppTheme.automatic.rawValue
         self.currentTheme = AppTheme(rawValue: savedTheme) ?? .automatic
     }
 } 

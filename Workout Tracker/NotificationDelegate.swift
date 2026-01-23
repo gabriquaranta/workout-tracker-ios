@@ -2,12 +2,8 @@
 //  NotificationDelegate.swift
 //  Workout Tracker
 //
-//  Created by Gabriele Quaranta on 20/06/25.
-//
 
-
-// NotificationDelegate.swift
-
+import Foundation
 import Foundation
 import UserNotifications
 

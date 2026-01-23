@@ -1,3 +1,8 @@
+//
+//  ExerciseDetailView.swift
+//  Workout Tracker
+//
+
 import SwiftUI
 import Charts
 

@@ -1,8 +1,6 @@
 //
 //  WorkoutWidgetsBundle.swift
-//  WorkoutWidgets
-//
-//  Created by Gabriele Quaranta on 21/06/25.
+//  Workout Tracker
 //
 
 import WidgetKit
@@ -12,7 +10,5 @@ import SwiftUI
 struct WorkoutWidgetsBundle: WidgetBundle {
     var body: some Widget {
         WorkoutWidgets()
-        WorkoutWidgetsControl()
-        WorkoutWidgetsLiveActivity()
     }
 }

@@ -1,4 +1,8 @@
-// Models.swift
+// NOTE: The abbreviatedString(from:) method referenced in WorkoutLog requires a DateComponentsFormatter extension, usually implemented in DateComponentsFormatter+Extensions.swift. Ensure this extension exists in your project.
+//
+//  Models.swift
+//  Workout Tracker
+//
 
 import Foundation
 
@@ -37,24 +41,24 @@ struct WorkoutSet: Codable, Identifiable, Hashable {
     
     init(id: UUID = UUID(), reps: Int = 10, weight: Double = 20.0, restTimeInSeconds: Int = 60) {
         self.id = id
-        self.reps = reps
-        self.weight = weight
-        self.restTimeInSeconds = restTimeInSeconds
+        self.reps = max(0, reps)
+        self.weight = max(0.0, weight)
+        self.restTimeInSeconds = max(0, restTimeInSeconds)
     }
 }
 
 // MARK: - Live Workout Model
-struct LiveWorkoutSet: Identifiable, Codable {
+struct LiveWorkoutSet: Identifiable, Codable, Hashable, Equatable {
     let id: UUID
     var reps: Int
     var weight: Double
     var restTimeInSeconds: Int
     var isCompleted: Bool = false
-    var wasModified: Bool = false // NEW: Tracks if reps or weight were changed.
+    var wasModified: Bool = false // Tracks if reps or weight were changed.
 }
 
 // MARK: - Active Workout Model
-struct ActiveWorkout: Codable {
+struct ActiveWorkout: Codable, Equatable {
     var workoutID: UUID
     var workoutName: String
     var startTime: Date
@@ -67,7 +71,7 @@ struct ActiveWorkout: Codable {
 }
 
 // MARK: - Workout Log Models
-struct WorkoutLog: Codable, Identifiable {
+struct WorkoutLog: Codable, Identifiable, Equatable {
     let id: UUID
     var date: Date
     var workoutName: String
@@ -84,15 +88,18 @@ struct WorkoutLog: Codable, Identifiable {
         self.notes = notes
     }
 
+    /// Formats the workout duration using the custom DateComponentsFormatter extension.
+    /// The method 'abbreviatedString(from:)' is a static extension in DateComponentsFormatter+Extensions.swift.
+    /// Make sure DateComponentsFormatter+Extensions.swift is included in the target.
     var formattedDuration: String {
         let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.hour, .minute, .second]
         formatter.unitsStyle = .abbreviated
+        formatter.allowedUnits = [.hour, .minute, .second]
         return formatter.string(from: duration) ?? "0s"
     }
 }
 
-struct CompletedExercise: Codable, Identifiable {
+struct CompletedExercise: Codable, Identifiable, Equatable {
     let id: UUID
     var name: String
     var sets: [CompletedSet]
@@ -120,7 +127,7 @@ enum FeedbackRating: String, Codable, CaseIterable, Identifiable {
     var id: String { self.rawValue }
 }
 
-struct CompletedSet: Codable, Identifiable {
+struct CompletedSet: Codable, Identifiable, Equatable {
     let id: UUID
     var reps: Int
     var weight: Double
@@ -169,3 +176,4 @@ enum Weekday: Int, CaseIterable, Codable {
         }
     }
 }
+

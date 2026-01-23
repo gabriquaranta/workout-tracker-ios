@@ -2,12 +2,8 @@
 //  WorkoutActivityAttributes.swift
 //  Workout Tracker
 //
-//  Created by Gabriele Quaranta on 21/06/25.
-//
 
-
-// WorkoutActivityAttributes.swift
-
+import Foundation
 import Foundation
 import ActivityKit
 

@@ -13,77 +13,286 @@ A simple, snappy, and modern workout tracking app built entirely with SwiftUI. T
   <img src="https://github.com/gabriquaranta/workout-tracker-ios/blob/main/screenshots/IMG_4966.PNG" width="180" />
 </p>
 
-## Key Features
+---
 
-- **Dynamic Workout Plans**:
+## Features
 
-  - Create, edit, and delete custom workout plans.
-  - Clone existing workouts to quickly create new routines.
-  - Add exercises to any workout and define multiple sets with specific reps, weight, and rest times.
-  - Newly added sets automatically copy the values from the previous set, speeding up plan creation.
+### Core Functionality
 
-- **Interactive Workout Sessions**:
+- **Dynamic Workout Plans**: Create, edit, delete, and clone custom workout plans with exercises and sets
+- **Interactive Workout Sessions**: Real-time tracking with haptic feedback and automatic rest timers
+- **Live Activities & Dynamic Island**: Workout timer and rest timer always visible on Lock Screen
+- **Exercise Feedback**: Rate exercises on an emoji scale (😄 to 💀) with comparison to previous sessions
+- **Progressive Overload Tracking**: Smart weight increase suggestions and deload recommendations
 
-  - **Live Activities & Dynamic Island**: Your main workout timer and active rest timers are always visible on your Lock Screen and in the Dynamic Island.
-  - A live in-app timer tracks the total session duration.
-  - Check off sets as you complete them with satisfying **haptic feedback**.
-  - An automatic rest timer starts after each set, with a system notification when time is up.
-  - Edit any set inline while you train with quick steppers or direct text entry for reps, weight, and rest.
+### Stats & Analytics
 
-- **Qualitative & Quantitative Tracking**:
+- **Performance Graphs**: Max single-set volume and bodyweight percentage over time
+- **Personal Records**: Track max weight, reps at max, and best bodyweight percentage
+- **Weekly Volume Trend**: Visual chart of training load over weeks
+- **Searchable History**: Date-sorted log with notes and feedback
 
-  - **Exercise Feedback**: Rate how each exercise felt using an emoji scale (😄 to 💀) and see how it compares to your last attempt.
-  - **Workout Notes**: After finishing, add session-specific notes (e.g., "Felt strong," "Low energy") that are saved to your workout log.
+### Customization
 
-- **Customization & Settings**:
+- **Theme Switching**: Light, dark, or automatic (system) appearance
+- **Bodyweight Tracking**: Used for relative strength calculations
+- **Weight Increment Settings**: Match recommendations to your available plates
+- **Import/Export**: Share routines via JSON files
 
-  - **Theme Switching**: Choose between light, dark, or automatic (system) appearance modes in the settings.
-  - **Bodyweight Tracking**: Set your current bodyweight in the settings. Used for relative strength stats.
-  - **Smallest Weight Increment**: Customize the load rounding the app applies so recommendations match the plates you own.
+---
 
-- **Import & Export**:
+## Architecture
 
-  - **Export Workouts**: Export any workout as a JSON file from the editing screen. Share or back up your routines easily.
-  - **Import Workouts**: Import a workout from a JSON file, replacing the current workout in the editor. Great for sharing routines with friends or moving between devices.
+The app follows a layered architecture moving toward MVVM with service abstractions.
 
-- **Advanced Stats & History**:
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         View Layer                              │
+│  (SwiftUI Views with @EnvironmentObject access to WorkoutStore)│
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                       WorkoutStore                              │
+│  Central ObservableObject managing state and coordinating       │
+│  between views and services                                     │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+          ┌───────────────────┼───────────────────┐
+          ▼                   ▼                   ▼
+┌──────────────────┐ ┌──────────────────┐ ┌──────────────────┐
+│ PersistenceManager│ │ProgressiveOverload│ │WorkoutTimerManager│
+│  (Storage)        │ │    Service        │ │   (Timers)        │
+└──────────────────┘ └──────────────────┘ └──────────────────┘
+```
 
-  - **Main Dashboard**: See your total completed workouts, total time spent working out, and average progress across all exercises at a glance on the main screen.
-  - **Performance Graphs**: For each exercise, view a graph of your **max single-set volume** (`reps * weight`) over time, or switch to a graph of **max weight as a percentage of your bodyweight** over time.
-  - **Personal Records**: Track key PRs, including your max weight ever lifted, reps at max, and best weight/bodyweight %.
-  - **Progressive Overload Tracking**: Get smart weight increase suggestions based on your performance, deload warnings when recovery is needed, and detailed progress analytics showing improvement percentages over time.
-  - **Weekly Volume Trend**: A compact line chart on the workouts tab highlights how your total load evolves week over week.
-  - **Searchable History**: A detailed, date-sorted log of all completed workouts, including notes and feedback. The main stats screen has a search bar to quickly find any exercise.
-  - **Clear History**: Option to safely delete all workout history and stats without affecting your saved workout plans.
+### Project Structure
 
-- **Data Persistence**: Your workouts and history are automatically saved to the device, so your data is always there when you open the app.
+```
+Workout Tracker/
+├── Workout Tracker/              # Main app target
+│   ├── Models.swift              # Core data models (Workout, Exercise, Set, etc.)
+│   ├── WorkoutStore.swift        # Central state management (@MainActor)
+│   ├── Constants.swift           # App-wide constants (overload thresholds, etc.)
+│   ├── UserDefaultsKeys.swift    # Type-safe UserDefaults keys
+│   │
+│   ├── Services/                 # Business logic layer
+│   │   ├── PersistenceManager.swift      # Storage abstraction (PersistenceProtocol)
+│   │   ├── ProgressiveOverloadService.swift  # Progressive overload algorithms
+│   │   ├── WorkoutTimerManager.swift     # Timer management with Combine
+│   │   ├── PersistenceError.swift        # Custom error types
+│   │   └── WorkoutError.swift            # Workout operation errors
+│   │
+│   ├── Components/               # Reusable UI components
+│   │   ├── CardStyle.swift               # Shared card styling modifier
+│   │   ├── ChipView.swift                # Tag/chip UI component
+│   │   ├── ExerciseSuggestionService.swift   # Exercise name autocomplete logic
+│   │   └── ExerciseSuggestionsView.swift     # Autocomplete dropdown UI
+│   │
+│   ├── Extensions/               # Swift extensions
+│   │   └── DateComponentsFormatter+Extensions.swift  # Time formatting utilities
+│   │
+│   ├── [View Files]              # SwiftUI views (ActiveWorkoutView, StatsView, etc.)
+│   └── Assets.xcassets/          # Images and colors
+│
+├── WorkoutWidgets/               # Widget Extension target
+│   ├── WorkoutWidgets.swift      # Live Activity implementation
+│   ├── WorkoutWidgetsBundle.swift
+│   └── WorkoutActivityAttributes.swift  # Shared with main app
+│
+├── Workout TrackerTests/         # Unit tests
+│   ├── WorkoutStoreTests.swift
+│   ├── ProgressiveOverloadServiceTests.swift
+│   ├── ModelsTests.swift
+│   └── Mocks/                    # Test doubles
+│       ├── MockPersistenceManager.swift
+│       └── MockWorkoutStore.swift
+│
+└── Workout TrackerUITests/       # UI tests
+```
+
+### Key Services
+
+| Service                        | Responsibility                                                                                                                                  |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| **PersistenceManager**         | Abstracts UserDefaults storage with `PersistenceProtocol`. Enables future migration to SwiftData/CoreData and facilitates testing with mocks.   |
+| **ProgressiveOverloadService** | Stateless service implementing evidence-based progressive overload algorithms. Calculates weight suggestions and detects when deload is needed. |
+| **WorkoutTimerManager**        | Manages workout elapsed time and rest timers using Combine. Separates timer logic from views for testability.                                   |
+
+---
+
+## Technology Stack
+
+| Category            | Technology                |
+| ------------------- | ------------------------- |
+| **Language**        | Swift 5.9+                |
+| **UI Framework**    | SwiftUI (100% native)     |
+| **Minimum iOS**     | iOS 17.0+                 |
+| **Live Activities** | ActivityKit               |
+| **Charts**          | Apple Charts framework    |
+| **Notifications**   | UserNotifications         |
+| **Persistence**     | UserDefaults with Codable |
+| **Testing**         | Swift Testing framework   |
+
+---
+
+## Setup Instructions
+
+### Prerequisites
+
+- **macOS**: Sonoma 14.0 or later
+- **Xcode**: 15.0 or later (Swift 5.9+, iOS 17 SDK)
+- **Device/Simulator**: iOS 17.0 or later
+
+### Build & Run
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/gabriquaranta/workout-tracker-ios.git
+   cd workout-tracker-ios
+   ```
+
+2. Open the project in Xcode:
+
+   ```bash
+   open "Workout Tracker.xcodeproj"
+   ```
+
+3. Configure signing:
+   - Select the `Workout Tracker` target → Signing & Capabilities
+   - Choose your development team
+   - Repeat for the `WorkoutWidgets` target
+
+4. Select a target device (iPhone 15 Pro recommended for Dynamic Island)
+
+5. Build and run (`Cmd + R`)
+
+### Dependencies
+
+This project has **no external dependencies**. All functionality uses Apple's native frameworks.
+
+---
+
+## Testing
+
+The project uses Swift's modern Testing framework (`import Testing`).
+
+### Running Tests
+
+**Via Xcode:**
+
+- Press `Cmd + U` to run all tests
+- Use the Test Navigator (`Cmd + 6`) to run specific tests
+
+**Via Command Line:**
+
+```bash
+xcodebuild test \
+  -project "Workout Tracker.xcodeproj" \
+  -scheme "Workout Tracker" \
+  -destination "platform=iOS Simulator,name=iPhone 15 Pro"
+```
+
+### Test Coverage
+
+| Component            | Test File                               |
+| -------------------- | --------------------------------------- |
+| Models               | `ModelsTests.swift`                     |
+| WorkoutStore         | `WorkoutStoreTests.swift`               |
+| Progressive Overload | `ProgressiveOverloadServiceTests.swift` |
+
+### Mock Objects
+
+Test doubles are located in `Workout TrackerTests/Mocks/`:
+
+- `MockPersistenceManager`: Implements `PersistenceProtocol` with in-memory storage
+- `MockWorkoutStore`: Test double for view testing
+
+---
+
+## Key Patterns Used
+
+### @EnvironmentObject for Shared State
+
+`WorkoutStore` is injected at the app root and accessed throughout via `@EnvironmentObject`:
+
+```swift
+// App root injection
+@main
+struct WorkoutTrackerApp: App {
+    @StateObject private var store = WorkoutStore()
+
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .environmentObject(store)
+        }
+    }
+}
+
+// Access in any view
+struct WorkoutsView: View {
+    @EnvironmentObject var store: WorkoutStore
+}
+```
+
+### PersistenceProtocol for Storage Abstraction
+
+Protocol-based persistence enables dependency injection and testability:
+
+```swift
+protocol PersistenceProtocol {
+    func saveWorkouts(_ workouts: [Workout])
+    func loadWorkouts() -> [Workout]?
+    func saveHistory(_ history: [WorkoutLog])
+    func loadHistory() -> [WorkoutLog]?
+    // ... additional methods
+}
+
+// Production implementation
+class PersistenceManager: PersistenceProtocol { ... }
+
+// Test mock
+class MockPersistenceManager: PersistenceProtocol { ... }
+```
+
+### Live Activities for Workout Tracking
+
+Workout progress is displayed on Lock Screen and Dynamic Island:
+
+```swift
+// Start activity
+let attributes = WorkoutActivityAttributes(workoutName: workout.name)
+let state = WorkoutActivityAttributes.ContentState(
+    elapsedTime: 0,
+    restTimeRemaining: nil
+)
+activity = try Activity.request(attributes: attributes, content: .init(state: state))
+
+// Update activity
+await activity?.update(using: newState)
+```
+
+### @MainActor for Thread Safety
+
+`WorkoutStore` uses `@MainActor` to ensure all state changes occur on the main thread:
+
+```swift
+@MainActor
+class WorkoutStore: ObservableObject {
+    @Published var workouts: [Workout] { ... }
+}
+```
+
+---
 
 ## Privacy
 
 All data is stored locally on your device. No accounts, no cloud, and no tracking—your workouts and stats are private and never leave your phone.
 
-## Technology Stack
+---
 
-- **Language**: Swift
-- **UI Framework**: SwiftUI (100% native)
-- **Advanced Features**:
-  - **ActivityKit**: For Live Activities and Dynamic Island integration.
-  - **Charts**: Apple's native `Charts` Framework.
-  - **UserNotifications**: For handling rest timer alerts.
-- **Data Persistence**: `UserDefaults` with `Codable` for simple and fast local data storage.
+## Contributing
 
-## How to Run
-
-### Prerequisites
-
-- macOS Ventura or later
-- Xcode 14.1 or later (for Live Activities support)
-- An iOS Simulator or physical device running **iOS 16.1 or later**.
-
-### Steps
-
-1.  Clone or download the project source code.
-2.  Open the `WorkoutTracker.xcodeproj` file in Xcode.
-3.  Ensure you have a development team selected in the "Signing & Capabilities" tab for both the `Workout Tracker` and `WorkoutWidgets` targets.
-4.  Select a target simulator (e.g., iPhone 15 Pro) or connect a physical device.
-5.  Press the **Run** button (or `Cmd + R`) to build and run the app.
+See [AGENTS.md](AGENTS.md) for coding standards, commit message format, and architectural guidelines.

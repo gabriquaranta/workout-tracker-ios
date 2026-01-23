@@ -1,3 +1,8 @@
+//
+//  SettingsView.swift
+//  Workout Tracker
+//
+
 import SwiftUI
 
 struct SettingsView: View {

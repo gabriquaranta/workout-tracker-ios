@@ -1,4 +1,7 @@
-// ContentView.swift
+//
+//  ContentView.swift
+//  Workout Tracker
+//
 
 import SwiftUI
 

@@ -1,21 +1,26 @@
-// WorkoutsView.swift
+//
+//  WorkoutsView.swift
+//  Workout Tracker
+//
 
 import SwiftUI
 import Charts
 
 struct WorkoutsView: View {
+    
+    // MARK: - Properties
+    
     @EnvironmentObject var store: WorkoutStore
     @State private var isAddingWorkout = false
     @State private var path = NavigationPath()
     @State private var showingDeleteAlert = false
     @State private var workoutOffsetsToDelete: IndexSet?
     
+    // MARK: - Computed Properties
+    
     private var formattedTotalTime: String {
         let totalSeconds = store.history.reduce(0) { $0 + $1.duration }
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.hour, .minute]
-        formatter.unitsStyle = .abbreviated
-        return formatter.string(from: totalSeconds) ?? "0m"
+        return DateComponentsFormatter.abbreviatedHoursMinutesString(from: totalSeconds)
     }
     
     private var averageImprovementText: String {
@@ -30,44 +35,19 @@ struct WorkoutsView: View {
             "\(String(format: "%.1f", averageImprovement))%"
     }
 
-    private struct WeeklyVolumePoint: Identifiable {
-        let id = UUID()
-        let weekStart: Date
-        let totalVolume: Double
-    }
-
     private var weekAxisFormatter: DateFormatter {
         let formatter = DateFormatter()
         formatter.locale = Locale.current
         formatter.dateFormat = "MM/dd"
         return formatter
     }
-
-    private var weeklyVolumeData: [WeeklyVolumePoint] {
-        guard !store.history.isEmpty else { return [] }
-        let calendar = Calendar.current
-        let grouped = Dictionary(grouping: store.history) { log -> Date in
-            calendar.dateInterval(of: .weekOfYear, for: log.date)?.start ?? calendar.startOfDay(for: log.date)
-        }
-        let points = grouped.map { weekStart, logs -> WeeklyVolumePoint in
-            let totalVolume = logs.reduce(0.0) { logTotal, log in
-                logTotal + log.completedExercises.reduce(0.0) { exerciseTotal, exercise in
-                    exerciseTotal + exercise.sets.reduce(0.0) { setTotal, set in
-                        setTotal + Double(set.reps) * set.weight
-                    }
-                }
-            }
-            return WeeklyVolumePoint(weekStart: weekStart, totalVolume: totalVolume)
-        }
-        let sortedPoints = points.sorted { $0.weekStart < $1.weekStart }
-        let limited = sortedPoints.suffix(8)
-        return Array(limited)
-    }
+    
+    // MARK: - Body
 
     var body: some View {
             NavigationStack(path: $path) {
                 List {
-                    // active workout resume section
+                    // Active workout resume section
                     if let activeWorkout = store.activeWorkout {
                         Section {
                             VStack(alignment: .leading, spacing: 12) {
@@ -129,7 +109,8 @@ struct WorkoutsView: View {
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
 
-                    if !weeklyVolumeData.isEmpty {
+                    if !store.getWeeklyVolumeData().isEmpty {
+                        let weeklyVolumeData = store.getWeeklyVolumeData()
                         VStack(alignment: .leading, spacing: 12) {
                             HStack {
                                 Text("Weekly Volume")
@@ -212,18 +193,20 @@ struct WorkoutsView: View {
                         ActiveWorkoutView(workout: workout)
                     }
                 }
-                .alert("delete workout?", isPresented: $showingDeleteAlert) {
-                    Button("delete", role: .destructive) {
+                .alert("Delete Workout?", isPresented: $showingDeleteAlert) {
+                    Button("Delete", role: .destructive) {
                         confirmDeleteWorkout()
                     }
-                    Button("cancel", role: .cancel) { 
+                    Button("Cancel", role: .cancel) { 
                         workoutOffsetsToDelete = nil
                     }
                 } message: {
-                    Text("this will permanently delete the selected workout and cannot be undone.")
+                    Text("This will permanently delete the selected workout and cannot be undone.")
                 }
             }
         }
+    
+    // MARK: - Private Methods
     
     private func deleteWorkout(at offsets: IndexSet) {
         workoutOffsetsToDelete = offsets
@@ -242,156 +225,6 @@ struct WorkoutsView: View {
     }
     
     private func formattedTime(_ interval: TimeInterval) -> String {
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.hour, .minute, .second]
-        formatter.unitsStyle = .positional
-        formatter.zeroFormattingBehavior = .pad
-        return formatter.string(from: interval) ?? "00:00"
-    }
-}
-
-
-struct StatPillView: View {
-    let value: String
-    let label: String
-    
-    var body: some View {
-        VStack {
-            Text(value)
-                .font(.title2)
-                .fontWeight(.bold)
-            Text(label)
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-    }
-}
-
-
-struct WorkoutRowView: View {
-    @Binding var workout: Workout
-    @Binding var path: NavigationPath
-    @EnvironmentObject var store: WorkoutStore
-    @State private var isExpanded = false
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // today's workout indicator
-            if store.isWorkoutScheduledForToday(workout) {
-                HStack {
-                    Text("🏋️ Today's Workout:")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.primary)
-                    Spacer()
-                }
-                .padding(.bottom, -4)
-            }
-            
-            HStack(spacing: 8) {
-                Button(action: { withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() } }) {
-                    HStack {
-                        Text(workout.name)
-                            .font(.headline)
-                            .fontWeight(.bold)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                        Image(systemName: "chevron.down")
-                            .font(.caption.weight(.bold))
-                            .rotationEffect(.degrees(isExpanded ? 0 : -90))
-                    }
-                }
-                .buttonStyle(.plain)
-                Spacer()
-                HStack(spacing: 8) {
-                    Button { path.append(workout) } label: { Image(systemName: "pencil") }
-                        .tint(.accentColor)
-                    Button { path.append(workout.id.uuidString) } label: { Image(systemName: "play.fill") }
-                        .tint(.green)
-                }
-                .buttonStyle(.bordered)
-            }
-            if isExpanded {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(workout.exercises) { exercise in
-                        HStack(spacing: 8) {
-                            Circle().frame(width: 6, height: 6).foregroundColor(.secondary.opacity(0.5))
-                            Text(exercise.name)
-                            Spacer()
-                            if !exercise.sets.isEmpty {
-                                let firstSet = exercise.sets[0]
-                                Text("\(exercise.sets.count) × \(firstSet.reps) × \(Int(firstSet.weight))")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    }
-                }
-                .padding(.leading, 8)
-                .padding(.top, 4)
-            }
-        }
-        .padding()
-        .background(Color(.systemGray6)) // The background is now on our view
-        .cornerRadius(12)
-    }
-}
-
-// AddWorkoutView is unchanged.
-struct AddWorkoutView: View {
-    @EnvironmentObject var store: WorkoutStore
-    @Environment(\.dismiss) var dismiss
-    @State private var newWorkoutName: String = ""
-    @Binding var path: NavigationPath
-    
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section(header: Text("Create a New Workout")) {
-                    TextField("Workout Name (e.g., Leg Day)", text: $newWorkoutName)
-                    Button("Create and Edit") { createBlankWorkout() }
-                        .disabled(newWorkoutName.isEmpty)
-                }
-                Section(header: Text("Or Copy an Existing Workout")) {
-                    if store.workouts.isEmpty {
-                        Text("No workouts to copy yet.").foregroundColor(.secondary)
-                    } else {
-                        ForEach(store.workouts) { workoutToCopy in
-                            HStack {
-                                Text(workoutToCopy.name)
-                                Spacer()
-                                Button("Copy") { clone(workout: workoutToCopy) }
-                                    .buttonStyle(.bordered)
-                            }
-                        }
-                    }
-                }
-            }
-            .navigationTitle("New Workout")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-            }
-        }
-    }
-    
-    private func createBlankWorkout() {
-        let newWorkout = Workout(name: newWorkoutName, exercises: [])
-        store.workouts.append(newWorkout)
-        dismiss()
-        path.append(newWorkout)
-    }
-    
-    private func clone(workout: Workout) {
-        let newWorkout = Workout(
-            id: UUID(),
-            name: "\(workout.name) (Copy)",
-            exercises: workout.exercises,
-            scheduledDays: workout.scheduledDays
-        )
-        store.workouts.append(newWorkout)
-        dismiss()
-        path.append(newWorkout)
+        DateComponentsFormatter.positionalString(from: interval)
     }
 }
