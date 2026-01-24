@@ -119,6 +119,18 @@ Workout Tracker/
 | **ProgressiveOverloadService** | Stateless service implementing evidence-based progressive overload algorithms. Calculates weight suggestions and detects when deload is needed. |
 | **WorkoutTimerManager**        | Manages workout elapsed time and rest timers using Combine. Separates timer logic from views for testability.                                   |
 
+## Refactor Highlights
+
+### Service Layer
+
+The refactor decoupled `WorkoutStore` from persistence, timer, and overload calculations so each responsibility now lives in a focused service. The service layer discussed above wires together [Workout Tracker/Services/PersistenceManager.swift](Workout%20Tracker/Services/PersistenceManager.swift) (backed by `PersistenceProtocol`), [Workout Tracker/Services/ProgressiveOverloadService.swift](Workout%20Tracker/Services/ProgressiveOverloadService.swift), and [Workout Tracker/Services/WorkoutTimerManager.swift](Workout%20Tracker/Services/WorkoutTimerManager.swift) while `WorkoutStore` orchestrates them through dependency injection and `@MainActor`-guarded state.
+
+Constants such as overload thresholds, request codecs, and UserDefaults keys were centralized inside [Workout Tracker/Constants.swift](Workout%20Tracker/Constants.swift) and [Workout Tracker/UserDefaultsKeys.swift](Workout%20Tracker/UserDefaultsKeys.swift) so every caller references the same source of truth, and the shared formatter in [Workout Tracker/Extensions/DateComponentsFormatter+Extensions.swift](Workout%20Tracker/Extensions/DateComponentsFormatter+Extensions.swift) keeps time displays consistent across widgets and views.
+
+### Expanded Testing & Mocks
+
+The testing layer now exercises the service boundaries and model logic with dedicated suites and test doubles. Coverage is maintained by [Workout TrackerTests/WorkoutStoreTests.swift](Workout%20TrackerTests/WorkoutStoreTests.swift), [Workout TrackerTests/ProgressiveOverloadServiceTests.swift](Workout%20TrackerTests/ProgressiveOverloadServiceTests.swift), and [Workout TrackerTests/ModelsTests.swift](Workout%20TrackerTests/ModelsTests.swift), while [Workout TrackerTests/Mocks/MockPersistenceManager.swift](Workout%20TrackerTests/Mocks/MockPersistenceManager.swift) and [Workout TrackerTests/Mocks/MockWorkoutStore.swift](Workout%20TrackerTests/Mocks/MockWorkoutStore.swift) keep view and service tests deterministic. Together the suites demonstrate CRUD safety, overload algorithms, deload detection, and model validation without touching production storage or timers.
+
 ---
 
 ## Technology Stack
@@ -292,7 +304,3 @@ class WorkoutStore: ObservableObject {
 All data is stored locally on your device. No accounts, no cloud, and no tracking—your workouts and stats are private and never leave your phone.
 
 ---
-
-## Contributing
-
-See [AGENTS.md](AGENTS.md) for coding standards, commit message format, and architectural guidelines.
